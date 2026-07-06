@@ -1,0 +1,10 @@
+[Unit]
+Description=timer gnome-night-shift
+
+[Timer]
+OnStartupSec=0
+OnCalendar=*-*-* *:*:00
+Unit=gnome-night-shift.service
+
+[Install]
+WantedBy=timers.target

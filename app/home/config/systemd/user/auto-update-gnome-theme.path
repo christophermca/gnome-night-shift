@@ -1,0 +1,9 @@
+[Unit]
+Description=watch file
+
+[Path]
+PathModified=/var/lib/gnome-night-shift/is-day-or-night
+
+[Install]
+WantedBy=default.target
+

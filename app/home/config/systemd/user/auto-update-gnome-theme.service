@@ -1,0 +1,12 @@
+[Unit]
+Description=Sets gsettings prefer-<light|dark>
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/lib/gnome-night-shift
+ExecStart=/usr/lib/gnome-night-shift/bin/auto-update-gnome-theme.sh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+

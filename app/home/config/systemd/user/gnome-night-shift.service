@@ -1,0 +1,14 @@
+[Unit]
+Description=Sets gsettings prefer-<light|dark>
+After=redshift.service
+Requires=redshift.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/lib/gnome-night-shift
+ExecStart=/usr/lib/gnome-night-shift/bin/get-sunrise-sunset.sh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+
