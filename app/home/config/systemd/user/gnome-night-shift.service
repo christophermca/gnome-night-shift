@@ -4,6 +4,7 @@ After=redshift.service
 Requires=redshift.service
 
 [Service]
+StateDirectory=%p
 Type=oneshot
 WorkingDirectory=/usr/lib/gnome-night-shift
 ExecStart=/usr/lib/gnome-night-shift/bin/get-sunrise-sunset.sh
