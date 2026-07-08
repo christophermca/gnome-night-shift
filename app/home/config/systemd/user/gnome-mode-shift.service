@@ -1,14 +1,13 @@
 [Unit]
 Description=Sets gsettings prefer-<light|dark>
-Wants=network-online.target display-manager.service
-After=network.target network-online.target graphical-session.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 StateDirectory=%p
 Type=oneshot
 WorkingDirectory=/usr/lib/gnome-mode-shift
 ExecStart=/usr/lib/gnome-mode-shift/bin/get-sunrise-sunset.sh
-Restart=on-failure
 
 [Install]
 WantedBy=default.target

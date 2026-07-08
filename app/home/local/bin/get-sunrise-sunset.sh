@@ -2,8 +2,21 @@
 
 source /usr/lib/gnome-mode-shift/shared-variables.sh
 
+#check for dependencies [redshift, netcap]
 if ! command -v redshift &> /dev/null; then
   echo "redshift is not found. Did you check if it's installed?";
+  exit 33
+fi
+
+if ! command -v netcap &> /dev/null; then
+  echo 'missing dependency netcap (nc)'
+  exit 33
+fi
+
+if nc -zw1 google.com 443; then
+  echo "we have connectivity"
+else
+  echo "we do not have connection"
   exit 33
 fi
 

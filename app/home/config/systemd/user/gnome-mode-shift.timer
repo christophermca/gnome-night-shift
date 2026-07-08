@@ -1,5 +1,7 @@
 [Unit]
 Description=timer gnome-mode-shift
+Wants=network.target
+After=network.target
 
 [Timer]
 OnStartupSec=0
