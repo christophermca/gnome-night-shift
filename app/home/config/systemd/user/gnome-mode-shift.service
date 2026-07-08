@@ -8,8 +8,3 @@ StateDirectory=%p
 Type=oneshot
 WorkingDirectory=/usr/lib/gnome-mode-shift
 ExecStart=/usr/lib/gnome-mode-shift/bin/get-sunrise-sunset.sh
-
-
-[Install]
-WantedBy=default.target
-

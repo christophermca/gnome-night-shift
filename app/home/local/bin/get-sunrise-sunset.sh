@@ -1,6 +1,7 @@
 #!/bin/sh
 
 source /usr/lib/gnome-mode-shift/shared-variables.sh
+source /usr/lib/gnome-mode-shift/bin/test-network-connection.sh
 
 #check for dependencies [redshift, netcap]
 if ! command -v redshift &> /dev/null; then
@@ -8,12 +9,9 @@ if ! command -v redshift &> /dev/null; then
   exit 33
 fi
 
-# if ! command -v netcap &> /dev/null; then
-#   echo 'missing dependency netcap (nc)'
-#   exit 33
-# fi
+testNetworkConnection
 
-ping -w 1 -c 1 8.8.8.8 # > /dev/null 2>&1 || echo 'offline'; exit 33;
+
 
 lookup_day_or_night=$(redshift -vp | grep -oP '(?<=Period: )\w+$|(?<=Period: )\w+(?=\))$' | tr [A-Z] [a-z]) # tr API tr from, to
 
