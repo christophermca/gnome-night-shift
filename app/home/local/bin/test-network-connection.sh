@@ -12,5 +12,10 @@ testNetworkConnection() {
 #   exit 33
 # fi
 
+if command -v ping &> /dev/null; then
   ping -w 1 -c 1 8.8.8.8 > /dev/null 2>&1 || handleOffline
+else
+  echo "Missing command `ping`"
+  exit 33;
+fi
 }

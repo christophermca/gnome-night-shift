@@ -1,12 +1,13 @@
 [Unit]
 Description=timer gnome-mode-shift
 Wants=network.target
-After=network.target
+After=network.target suspend.target
 
 [Timer]
 OnStartupSec=0
 OnCalendar=*-*-* *:*:00
+Persistent=true
 Unit=gnome-mode-shift.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=timers.target suspend.target
