@@ -3,7 +3,7 @@ Description=Sets gsettings prefer-<light|dark>
 Wants=display-manager.service
 After=graphical-session.target
 
-StartLimitBurst=3
+StartLimitBurst=2
 StartLimitIntervalSec=60
 
 [Service]

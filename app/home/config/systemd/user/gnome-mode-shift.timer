@@ -1,6 +1,7 @@
 [Unit]
 Description=timer gnome-mode-shift
 Wants=network.target
+OnFailure=stop-mode-shift-timer.service
 After=network.target
 
 [Timer]
