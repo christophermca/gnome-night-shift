@@ -2,7 +2,7 @@
 Description=watch file
 
 [Path]
-PathModified=/var/lib/gnome-mode-shift/is-day-or-night
+PathModified=%h/.local/state/gnome-mode-shift/is-day-or-night
 
 [Install]
 WantedBy=default.target

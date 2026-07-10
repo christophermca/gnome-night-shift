@@ -7,10 +7,10 @@ echo '::AUTO-UPDATE-GNOME-THEME::'
 # This function depends on redshift
 auto_update_gnome_theme() {
 
-  DAY_NIGHT=$(cat $DAY_NIGHT_MODE_PATH)
+  DAY_NIGHT=$(cat $IS_DAY_OR_NIGHT)
 
   if [ -z $DAY_NIGHT ]; then
-    echo "missing day_night; Check provided path: $DAY_NIGHT_MODE_PATH"
+    echo "missing day_night; Check provided path: $IS_DAY_OR_NIGHT"
     exit 33
   fi
 

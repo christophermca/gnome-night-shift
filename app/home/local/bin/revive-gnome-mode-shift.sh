@@ -1,5 +1,7 @@
 #!/bin/bash
 TIMER="gnome-mode-shift.timer"
+INTERFACE="$1"
+ACTION="$2"
 
 run_cmd() {
 	if [ $# -eq 0 ]; then
@@ -25,22 +27,19 @@ run_cmd() {
 	done
 }
 
-INTERFACE="$1"
-ACTION="$2"
-echo "$INTERFACE, $CMD, $ACTION, $TIMER"
 
 case "$ACTION" in
   up)
     echo "case1"
-    #if [ "$(nmcli networking connectivity)" = "full" ]; then
       CMD="start"
       run_cmd $CMD
-    #fi
     ;;
+
   down)
     echo "case2"
     CMD="stop"
     run_cmd $CMD
     ;;
+
 esac
 

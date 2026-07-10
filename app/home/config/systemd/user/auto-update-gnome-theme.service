@@ -3,7 +3,6 @@ Description=Sets gsettings prefer-<light|dark>
 
 [Service]
 Type=oneshot
-StateDirectory=%p
 WorkingDirectory=/usr/lib/gnome-mode-shift
 ExecStart=/usr/lib/gnome-mode-shift/bin/auto-update-gnome-theme.sh
 

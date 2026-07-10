@@ -1,17 +1,13 @@
 #!/bin/sh
-
 source /usr/lib/gnome-mode-shift/shared-variables.sh
 source /usr/lib/gnome-mode-shift/bin/test-network-connection.sh
 
-#check for dependencies [redshift, netcap]
+testNetworkConnection
+
 if ! command -v redshift &> /dev/null; then
   echo "redshift is not found. Did you check if it's installed?";
   exit 33
 fi
-
-testNetworkConnection
-
-
 
 lookup_day_or_night=$(redshift -vp | grep -oP '(?<=Period: )\w+$|(?<=Period: )\w+(?=\))$' | tr [A-Z] [a-z]) # tr API tr from, to
 
@@ -24,14 +20,14 @@ fi
 echo "current_day_night::: ${current}"
 
 save_configuration() {
-  local -r day_night_mode=$(cat $DAY_NIGHT_MODE_PATH)
+  local -r day_night_mode=$(cat $IS_DAY_OR_NIGHT)
 
   if [[ -n $current && $day_night_mode != $current ]]; then
-    if [[ ! -f  $DAY_NIGHT_MODE_PATH ]]; then
-      touch $DAY_NIGHT_MODE_PATH
+    if [[ ! -f  $IS_DAY_OR_NIGHT ]]; then
+      touch $IS_DAY_OR_NIGHT
     fi
 
-    echo $current > $DAY_NIGHT_MODE_PATH
+    echo $current > $IS_DAY_OR_NIGHT
     export DAY_NIGHT=$current
   else
     # does nothing

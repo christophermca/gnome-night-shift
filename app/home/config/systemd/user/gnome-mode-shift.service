@@ -1,14 +1,14 @@
 [Unit]
 Description=Sets gsettings prefer-<light|dark>
 Wants=display-manager.service
-After=graphical-session.target
+After=network.target graphical-session.target
 
 StartLimitBurst=2
 StartLimitIntervalSec=60
 
 [Service]
-StateDirectory=%p
 Type=oneshot
+StateDirectory=%p
 WorkingDirectory=/usr/lib/gnome-mode-shift
 ExecStart=/usr/lib/gnome-mode-shift/bin/get-sunrise-sunset.sh
 
