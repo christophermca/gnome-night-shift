@@ -104,8 +104,8 @@ paru -S gnome-mode-shift-git
 ## Usage
 
 1. Install and configure **Redshift** with your location.
-2. Install and enable **GNOME Mode Shift** i.e. (`systemctl enable --now gnome-mode-shift.service`)
-3. Configure the appearance settings for **Day** mode.
+2. Install and enable **GNOME Mode Shift** i.e. (`systemctl enable --now gnome-mode-shift.service gnome-mode-shift.timer auto-update-gnome-theme.service auto-update-gnome-theme.path stop-mode-shift-timer.service)
+3. Configure the appearance settings for **Day** mode.ti
 4. Configure the appearance settings for **Night** mode.
 5. The extension will automatically switch modes based on the current sunrise and sunset times reported by Redshift.
 
