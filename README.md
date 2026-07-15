@@ -115,7 +115,3 @@ Once configured, GNOME Mode Shift automatically changes between Day and Night mo
 
 * GitHub: https://github.com/christophermca/gnome-mode-shift
 * Arch Linux (AUR): https://aur.archlinux.org/packages/gnome-mode-shift-git
-
-## License
-
-[License](https://github.com/christophermca/gnome-mode-shift/blob/main/LICENSE)
