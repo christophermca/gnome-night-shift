@@ -27,10 +27,12 @@ def is_day_or_night():
         elif is_night:
             current = "night"
 
+        print(f"export {'DAY_NIGHT'}='{current}'")
+
         day_or_night = Path.expanduser(Path(STATE_FOLDER, "is-day-or-night"))
+
         with day_or_night.open("w", encoding="utf-8") as file:
             file.write(current)
-        return current
 
     except OSError:
         print(

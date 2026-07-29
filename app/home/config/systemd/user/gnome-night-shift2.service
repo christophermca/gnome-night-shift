@@ -7,6 +7,6 @@ After=network.target graphical-session.target
 Type=oneshot
 StateDirectory=gnome-night-shift
 WorkingDirectory=/usr/lib/gnome-night-shift
-ExecStart=/home/%u/.local/bin/is_day_or_night.py
+ExecStart=/usr/lib/gnome-night-shift/bin/is_day_or_night.py
 
 Restart=no
