@@ -1,0 +1,12 @@
+[Unit]
+Description=gnome-night-shift set day or night
+Wants=display-manager.service
+After=network.target graphical-session.target
+
+[Service]
+Type=oneshot
+StateDirectory=gnome-night-shift
+WorkingDirectory=/usr/lib/gnome-night-shift
+ExecStart=/home/%u/.local/bin/is_day_or_night.py
+
+Restart=no

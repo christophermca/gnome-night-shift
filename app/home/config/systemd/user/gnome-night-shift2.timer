@@ -1,0 +1,12 @@
+[Unit]
+Description=timer gnome-night-shift
+Wants=network.target
+
+[Timer]
+OnStartupSec=0
+OnCalendar=*-*-* *:*:00
+Persistent=true
+Unit=gnome-night-shift2.service
+
+[Install]
+WantedBy=timers.target
