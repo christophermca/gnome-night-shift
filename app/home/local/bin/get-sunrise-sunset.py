@@ -39,7 +39,7 @@ def set_session_variables_night_shift(schema, key):
 
         print({"sunrise": sunrise, "sunset": sunset})
 
-        times = [sunset, sunrise]
+        times = [sunrise, sunset]
 
         state_file = Path.expanduser(Path(STATE_FOLDER, "times"))
         with state_file.open("w", encoding="utf-8") as file:

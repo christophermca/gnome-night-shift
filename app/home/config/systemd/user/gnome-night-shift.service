@@ -1,16 +1,12 @@
 [Unit]
-Description=Sets gsettings prefer-<light|dark>
+Description=gnome-night-shift set day or night
 Wants=display-manager.service
 After=network.target graphical-session.target
 
-StartLimitBurst=2
-StartLimitIntervalSec=60
-
 [Service]
 Type=oneshot
-StateDirectory=%p
+StateDirectory=gnome-night-shift
 WorkingDirectory=/usr/lib/gnome-night-shift
-ExecStart=/usr/lib/gnome-night-shift/bin/get-sunrise-sunset.sh
+ExecStart=/usr/lib/gnome-night-shift/bin/is_day_or_night.sh
 
-Restart=on-failure
-RestartSec=5
+Restart=no

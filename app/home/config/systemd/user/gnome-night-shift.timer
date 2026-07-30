@@ -1,8 +1,6 @@
 [Unit]
 Description=timer gnome-night-shift
 Wants=network.target
-OnFailure=stop-night-shift-timer.service
-After=network.target
 
 [Timer]
 OnStartupSec=0

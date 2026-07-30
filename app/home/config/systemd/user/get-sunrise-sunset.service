@@ -7,6 +7,6 @@ After=geoclue.service network-online.target graphical-session.target
 Type=oneshot
 StateDirectory=gnome-night-shift
 WorkingDirectory=/usr/lib/gnome-night-shift
-ExecStart=/home/%u/.local/bin/get-sunrise-sunset2.py
+ExecStart=/home/%u/.local/bin/get-sunrise-sunset.py
 
 Restart=on-failure
