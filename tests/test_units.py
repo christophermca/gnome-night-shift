@@ -3,11 +3,7 @@
 import shlex
 from pathlib import Path
 
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # Python 3.10: the same parser, as a package
-    import tomli as tomllib
-
+from importlib.metadata import distribution
 import pytest
 
 import night_shift_services
@@ -16,7 +12,6 @@ from night_shift_services import Services
 
 UNIT_DIR = Path(night_shift_services.__file__).parent / "systemd" / "user"
 SERVICE_UNITS = sorted(UNIT_DIR.glob("*.service"))
-CORE_PYPROJECT = Path(__file__).parents[2] / "pyproject.toml"
 TIMES = ("06:52", "18:51")
 
 
@@ -41,7 +36,11 @@ def test_unit_execstart_is_a_valid_command(
     unit, argv, mock_fetcher, mock_check, capsys
 ):
     program, *args = _exec_start(unit)
-    scripts = tomllib.loads(CORE_PYPROJECT.read_text())["project"]["scripts"]
+    scripts = {
+        ep.name
+        for ep in distribution("nocturne-shift").entry_points
+        if ep.group == "console_scripts"
+    }
     argv(*args)
 
     try:

@@ -41,7 +41,6 @@ where = ["src"]
 "night_shift_services" = ["systemd/user/*.timer", "systemd/user/*.service"]
 
 [tool.setuptools_scm]
-root = ".."                    # the git repo is one folder up
 tag_regex = '^gnome-v(?P<version>\d+\.\d+\.\d+)$'
 git_describe_command = "git describe --dirty --tags --long --match 'gnome-v*'"
 local_scheme = "no-local-version"
