@@ -11,11 +11,11 @@ name = "gnome-night-shift"
 dynamic = ["version"]
 description = "Switch GNOME between light and dark at sunrise and sunset: systemd timers (`nocturne-shift services`) for the Night Shift extension"
 keywords = ["gnome", "night shift", "dark mode", "sunrise", "sunset", "theme", "systemd"]
+license = "MIT"
 requires-python = ">=3.10"
 readme = "README.md"
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: POSIX :: Linux",
   "Environment :: X11 Applications :: Gnome",
 ]
@@ -27,8 +27,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/christophermca/night-shift"
+Homepage = "https://github.com/christophermca/gnome-night-shift"
+"nocturne-shift" = "https://github.com/christophermca/night-shift"
 "GNOME extension" = "https://github.com/christophermca/gnome-shell-extension-night-shift"
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov"]
+dev = ["black"]
 
 # Adds `nocturne-shift services ...` to the core's command
 [project.entry-points."night_shift.commands"]

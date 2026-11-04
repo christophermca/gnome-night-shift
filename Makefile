@@ -1,7 +1,8 @@
-PROJECT_NAME := nocturne-shift
-GNOME_NAME   := gnome-night-shift
+PROJECT_NAME := gnome-night-shift
+CORE_NAME    := nocturne-shift
+# Local checkout of the core, for `make dev` (override: make dev CORE_DIR=...)
+CORE_DIR     ?= ../night-shift
 INDEXES      := --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
-SCHEMA_DIR   := src/nocturne_shift/schemas
 VENV         := venv
 PYTHON       ?= python3
 PY           := $(VENV)/bin/python
@@ -14,10 +15,12 @@ $(PY):
 	$(PYTHON) -m venv --system-site-packages $(VENV)
 	$(PY) -m pip install -U pip
 
-.PHONY: dev test test-nocov build rebuild publish-testpypi install install-dev upgrade-dev compile-schema edit-schema
+.PHONY: dev test test-nocov build rebuild publish-testpypi install-dependencies install-global install-dev upgrade-dev
 
+# nocturne-shift>=0.5.0 isn't on PyPI yet, so install the core from CORE_DIR.
 dev: $(PY)
-	$(PY) -m pip install -e ".[test, dev]"
+	$(PY) -m pip install -e "$(CORE_DIR)"
+	$(PY) -m pip install -e ".[test,dev]"
 
 test: dev
 	$(PY) -m pytest -c pytest.ini
@@ -28,7 +31,6 @@ test-nocov: dev
 build: $(PY)
 	$(PY) -m pip install -U build
 	$(PY) -m build . --outdir dist/
-	$(PY) -m build gnome-night-shift --outdir dist/
 
 rebuild:
 	rm -rf dist/
@@ -39,18 +41,12 @@ publish-testpypi: rebuild
 	$(PY) -m twine upload --repository testpypi dist/*
 
 install-dependencies:
-	$(PY) -m pip install $(INDEXES) $(PROJECT_NAME)
+	$(PY) -m pip install $(INDEXES) $(CORE_NAME)
 
 install-global:
-	sudo pipx install --global --system-site-packages --pip-args="$(INDEXES)" $(PROJECT_NAME) $(GNOME_NAME)
+	sudo pipx install --global --system-site-packages --pip-args="$(INDEXES)" $(PROJECT_NAME)    # pulls in nocturne-shift
 
 install-dev: dev
 
 upgrade-dev: $(PY)
 	$(PY) -m pip install --upgrade .
-
-compile-schema:
-	glib-compile-schemas $(SCHEMA_DIR)
-
-edit-schema:
-	GSETTINGS_SCHEMA_DIR="$(SCHEMA_DIR)" dconf-editor
