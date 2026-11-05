@@ -1,11 +1,38 @@
 #!/usr/bin/python
 import sys
 import os
+import shlex
 import subprocess
 import shutil
 from pathlib import Path
 
 WATCH_OPTION = "-w"
+COMMAND = "nocturne-shift"
+
+
+def find_command(name: str = COMMAND) -> str | None:
+    """Absolute path of the `nocturne-shift` that belongs to this install.
+
+    pip puts a package's commands next to the Python that runs it: a pipx
+    venv's bin/ (per-user or --global), a plain venv's bin/. Look there
+    first, so the units call the same install that wrote them, whatever
+    PATH systemd uses. Fall back to PATH (e.g. `pip install --user`).
+    """
+    beside_python = Path(sys.executable).parent / name
+    if beside_python.is_file() and os.access(beside_python, os.X_OK):
+        return str(beside_python)
+    return shutil.which(name)
+
+
+def units_dir() -> Path:
+    """Where setup writes its unit files: ~/.local/share/gnome-night-shift/units.
+
+    Not inside the installed package: with `pipx install --global` that
+    folder is owned by root, and a reinstall replaces it, which would leave
+    the systemd links pointing at nothing.
+    """
+    data_home = os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    return Path(data_home) / "gnome-night-shift" / "units"
 
 
 class Services:
@@ -52,17 +79,15 @@ class Services:
 
         # progromatically write systemd units vs copy/pasting
 
-        if schema:
-            tmp_dir = (
-                Path(tmp_dir) if tmp_dir else Path(__file__).parent / "tmp"
-            )
-            tmp_dir.mkdir(parents=True, exist_ok=True)
+        # Always write copies, so ExecStart gets the real command path even
+        # without a schema. Fall back to the packaged units if that fails.
+        tmp_dir = Path(tmp_dir) if tmp_dir else units_dir()
+        tmp_dir.mkdir(parents=True, exist_ok=True)
 
-            self._make_copy_of_unit(self.all_units, schema, tmp_dir)
+        self._make_copy_of_unit(self.all_units, schema, tmp_dir, find_command())
 
-            if any(tmp_dir.iterdir()):  # if directory is not empty
-                self._symlink(tmp_dir)
-
+        if any(tmp_dir.iterdir()):  # if directory is not empty
+            self._symlink(tmp_dir)
         else:
             self._symlink(self.source_dir)
 
@@ -105,6 +130,16 @@ class Services:
         except subprocess.CalledProcessError as e:
             print(f"Error: {e}")
 
+    def _remove_generated_units(self, units: Path | None = None):
+        """Delete the unit files setup wrote. Only ours, by name."""
+        units = Path(units) if units else units_dir()
+        for unit in self.all_units:
+            (units / unit.name).unlink(missing_ok=True)
+        try:
+            units.rmdir()  # only if now empty
+        except OSError:
+            pass
+
     def _remove_symlink(self):
         for unit in self.all_units:
             if unit.is_file():
@@ -126,11 +161,10 @@ class Services:
         units: list[str],
         schema_path: str | None,
         save_to_path: str | None,
+        program: str | None = None,
     ) -> str | None:
         try:
-            # TODO change tmp/ to a hiddle folder .tmp/
-
-            # Makes copy with changes to EXECSTART then save to tmp folder
+            # Makes copy with changes to EXECSTART then save to save_to_path
             for unit in units:
                 if unit.is_file():
                     file_copy = shutil.copy2(unit, save_to_path)
@@ -139,19 +173,12 @@ class Services:
 
                         for i, line in enumerate(lines):
                             if line.startswith("ExecStart="):
-                                cmd = line.rstrip()
-                                # -c takes the schema path itself; -w never checks
-                                option = (
-                                    ""
-                                    if cmd.endswith((" -c", " -w"))
-                                    else f" {WATCH_OPTION}"
-                                )
-                                lines[i] = f"{cmd}{option} {schema_path}\n"
+                                lines[i] = _exec_start(line, program, schema_path)
 
                         with open(file_copy, "w") as file:
                             file.writelines(
                                 lines
-                            )  # overwrites files in tmp_dir
+                            )  # overwrites files in save_to_path
 
         except Exception:
             return None
@@ -175,3 +202,16 @@ class Services:
     def destroy(self):
         self.stop()
         self._remove_symlink()
+        self._remove_generated_units()
+
+
+def _exec_start(line: str, program: str | None, schema_path: str | None) -> str:
+    """Rebuild one ExecStart= line: swap in `program`, append the schema."""
+    unit_program, *args = shlex.split(line.removeprefix("ExecStart="))
+    if schema_path:
+        # -c and -w take the schema path themselves; otherwise watch it
+        if not args or args[-1] not in ("-c", WATCH_OPTION):
+            args.append(WATCH_OPTION)
+        args.append(schema_path)
+    # shlex.join quotes a path with spaces; systemd accepts '...' quoting
+    return "ExecStart=" + shlex.join([program or unit_program, *args]) + "\n"

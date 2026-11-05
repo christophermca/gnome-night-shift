@@ -7,6 +7,7 @@
 # Picking "real where it's cheap and safe, fake where it isn't" is the core
 # judgment call in unit testing.
 import os
+from pathlib import Path
 import pytest
 
 from unittest.mock import patch, call
@@ -229,3 +230,128 @@ def test_make_copy_reuses_a_trailing_schema_flag(dirs, tmp_path, flag):
     assert (out / "x.service").read_text() == (
         f"[Service]\nExecStart=/bin/night-shift {flag} /x/schemas\n"
     )
+
+
+def test_make_copy_swaps_in_the_real_command_path(dirs, tmp_path):
+    source, target = dirs
+    (source / "x.service").write_text(
+        "[Service]\nExecStart=%h/.local/bin/nocturne-shift -c\n"
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+
+    Services(source, target)._make_copy_of_unit(
+        [source / "x.service"], "/x/schemas", out, "/opt/pipx/bin/nocturne-shift"
+    )
+
+    assert (out / "x.service").read_text() == (
+        "[Service]\nExecStart=/opt/pipx/bin/nocturne-shift -c /x/schemas\n"
+    )
+
+
+def test_make_copy_quotes_a_path_with_spaces(dirs, tmp_path):
+    source, target = dirs
+    (source / "x.service").write_text("[Service]\nExecStart=/bin/nocturne-shift -w\n")
+    out = tmp_path / "out"
+    out.mkdir()
+
+    Services(source, target)._make_copy_of_unit(
+        [source / "x.service"], "/my schemas", out, "/home/a b/bin/nocturne-shift"
+    )
+
+    assert (out / "x.service").read_text() == (
+        "[Service]\nExecStart='/home/a b/bin/nocturne-shift' -w '/my schemas'\n"
+    )
+
+
+def test_setup_without_schema_still_uses_the_real_path(dirs, mock_run, tmp_path):
+    source, target = dirs
+    (source / "x.service").write_text("[Service]\nExecStart=%h/.local/bin/nocturne-shift -c\n")
+
+    with patch(
+        "night_shift_services.services.find_command", return_value="/real/nocturne-shift"
+    ):
+        Services(source, target)._create_units(tmp_dir=tmp_path / "gen")
+
+    assert (target / "x.service").read_text() == (
+        "[Service]\nExecStart=/real/nocturne-shift -c\n"
+    )
+
+
+def test_find_command_prefers_the_one_next_to_python(tmp_path, monkeypatch):
+    from night_shift_services.services import find_command
+
+    script = tmp_path / "nocturne-shift"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    monkeypatch.setattr("sys.executable", str(tmp_path / "python"))
+    monkeypatch.setenv("PATH", "/nowhere")
+
+    assert find_command() == str(script)
+
+
+def test_find_command_falls_back_to_path(tmp_path, monkeypatch):
+    from night_shift_services.services import find_command
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    script = bindir / "nocturne-shift"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    monkeypatch.setattr("sys.executable", str(tmp_path / "venv" / "python"))
+    monkeypatch.setenv("PATH", str(bindir))
+
+    assert find_command() == str(script)
+
+
+def test_units_dir_follows_xdg_data_home(tmp_path, monkeypatch):
+    from night_shift_services.services import units_dir
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    assert units_dir() == tmp_path / "data" / "gnome-night-shift" / "units"
+
+
+def test_units_dir_defaults_to_local_share(tmp_path, monkeypatch):
+    from night_shift_services.services import units_dir
+
+    monkeypatch.delenv("XDG_DATA_HOME")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    assert units_dir() == tmp_path / ".local" / "share" / "gnome-night-shift" / "units"
+
+
+def test_setup_writes_units_outside_the_package(dirs, mock_run, tmp_path):
+    import night_shift_services
+
+    source, target = dirs
+    Services(source, target).setup("/x/schemas", build_only=True)
+
+    units = tmp_path / "xdg" / "gnome-night-shift" / "units"
+    assert sorted(p.name for p in units.iterdir()) == sorted(UNITS)
+    assert all(
+        os.readlink(target / name) == str(units / name) for name in UNITS
+    )
+    assert not (Path(night_shift_services.__file__).parent / "tmp").exists()
+
+
+def test_destroy_removes_the_generated_units(dirs, mock_run, tmp_path):
+    source, target = dirs
+    services = Services(source, target)
+    services.setup("/x/schemas", build_only=True)
+
+    services.destroy()
+
+    assert not (tmp_path / "xdg" / "gnome-night-shift" / "units").exists()
+
+
+def test_destroy_keeps_other_files_in_the_units_dir(dirs, mock_run, tmp_path):
+    source, target = dirs
+    services = Services(source, target)
+    services.setup("/x/schemas", build_only=True)
+    units = tmp_path / "xdg" / "gnome-night-shift" / "units"
+    (units / "mine.txt").write_text("keep me")
+
+    services.destroy()
+
+    assert sorted(p.name for p in units.iterdir()) == ["mine.txt"]
