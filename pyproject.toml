@@ -35,6 +35,10 @@ Homepage = "https://github.com/christophermca/gnome-night-shift"
 test = ["pytest", "pytest-cov"]
 dev = ["black"]
 
+# Its own command, so `pipx install gnome-night-shift` puts one on PATH
+[project.scripts]
+gnome-night-shift = "night_shift_services.cli:main"
+
 # Adds `nocturne-shift services ...` to the core's command
 [project.entry-points."night_shift.commands"]
 services = "night_shift_services.cli:register"

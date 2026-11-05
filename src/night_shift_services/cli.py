@@ -1,3 +1,4 @@
+import argparse
 import importlib.metadata
 
 try:
@@ -33,6 +34,33 @@ def run(args):
         return services.destroy()
 
 
+def main(argv=None):
+    """The `gnome-night-shift` command: setup/start/stop/teardown on their own.
+
+    gnome-night-shift needs a command of its own so `pipx install
+    gnome-night-shift` links one onto PATH (pipx only links the commands of
+    the package it installs, not those of its dependencies). It runs the same
+    code as `nocturne-shift services ...`.
+    """
+    parser = argparse.ArgumentParser(
+        prog="gnome-night-shift",
+        description="Set up the systemd timers that run nocturne-shift",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    _add_actions(parser.add_subparsers(dest="subcommand"))
+
+    args = parser.parse_args(argv)
+    if args.subcommand is None:
+        parser.print_help()
+        return 2
+    run(args)
+    return 0
+
+
 def setup_arguments(subparsers):
     services_parser = subparsers.add_parser(
         "services",
@@ -47,11 +75,18 @@ def setup_arguments(subparsers):
         help="Prints more information",
     )
 
-    action_parser = services_parser.add_subparsers(
-        dest="subcommand",
-        prog="nocturne-shift services",
+    _add_actions(
+        services_parser.add_subparsers(
+            dest="subcommand",
+            prog="nocturne-shift services",
+        )
     )
 
+    return services_parser
+
+
+def _add_actions(action_parser):
+    """setup/start/stop/teardown, shared by both commands."""
     stop_action_parser = action_parser.add_parser(
         "stop", help="Stops night-shift services"
     )
@@ -81,5 +116,3 @@ def setup_arguments(subparsers):
     teardown_action_parser = action_parser.add_parser(
         "teardown", help="Removes linked systemd units"
     )
-
-    return services_parser
