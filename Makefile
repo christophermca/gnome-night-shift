@@ -1,7 +1,7 @@
 PROJECT_NAME := gnome-night-shift
 CORE_NAME    := nocturne-shift
 # Local checkout of the core, for `make dev` (override: make dev CORE_DIR=...)
-CORE_DIR     ?= ../night-shift
+CORE_DIR     ?= ../nocturne-shift
 INDEXES      := --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
 VENV         := venv
 PYTHON       ?= python3

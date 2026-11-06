@@ -28,7 +28,7 @@ name = "gnome-night-shift"
 
 [project.urls]
 Homepage = "https://github.com/christophermca/gnome-night-shift"
-"nocturne-shift" = "https://github.com/christophermca/night-shift"
+"nocturne-shift" = "https://github.com/christophermca/nocturne-shift"
 "GNOME extension" = "https://github.com/christophermca/gnome-shell-extension-night-shift"
 
 [project.optional-dependencies]
