@@ -1,5 +1,7 @@
 PROJECT_NAME := gnome-night-shift
 CORE_NAME    := nocturne-shift
+NOCTURNE_SHIFT ?= $(CORE_NAME)
+GNOME_NIGHT_SHIFT ?= $(PROJECT_NAME)
 # Local checkout of the core, for `make dev` (override: make dev CORE_DIR=...)
 CORE_DIR     ?= ../nocturne-shift
 INDEXES      := --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
@@ -15,7 +17,13 @@ $(PY):
 	$(PYTHON) -m venv --system-site-packages $(VENV)
 	$(PY) -m pip install -U pip
 
-.PHONY: dev test test-nocov build rebuild publish-testpypi install-dependencies install-global install-dev upgrade-dev
+.PHONY: dev test test-nocov build rebuild publish-testpypi testpypi-wheels install-dependencies install-global install-dev upgrade-dev
+
+testpypi-wheels: $(PY)
+	rm -rf $(WHEELS)
+	$(PY) -m pip download --no-deps --only-binary=:all: \
+		--index-url $(TESTPYPI) --dest $(WHEELS) \
+		"$(NOCTURNE_SHIFT)" "$(GNOME_NIGHT_SHIFT)"
 
 # nocturne-shift>=0.5.0 isn't on PyPI yet, so install the core from CORE_DIR.
 dev: $(PY)
@@ -40,11 +48,15 @@ publish-testpypi: rebuild
 	$(PY) -m pip install -U twine
 	$(PY) -m twine upload --repository testpypi dist/*
 
-install-dependencies:
-	$(PY) -m pip install $(INDEXES) $(CORE_NAME)
+# Install the downloaded wheel file; its dependencies come from PyPI only
+install-dependencies: testpypi-wheels
+	$(PY) -m pip install $(WHEELS)/nocturne_shift-*.whl
 
-install-global:
-	sudo pipx install --global --system-site-packages --pip-args="$(INDEXES)" $(PROJECT_NAME)    # pulls in nocturne-shift
+# The core first, then install **this** package into its venv: installing this
+# package on its own would look up nocturne-shift by name on PyPI.
+install-global: testpypi-wheels
+	sudo pipx install --global --system-site-packages $(abspath $(WHEELS))/nocturne_shift-*.whl
+	sudo pipx install --global nocturne-shift $(abspath $(WHEELS))/gnome_night_shift-*.whl
 
 install-dev: dev
 
