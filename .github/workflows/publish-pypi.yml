@@ -1,0 +1,118 @@
+name: Publish to PyPI
+
+# Run by hand: Actions tab -> "Publish to PyPI" -> Run workflow, on a commit
+# tagged gnome-vX.Y.Z (gnome-night-shift)
+# Uploads to PyPI are permanent, so:
+#   - only release versions are uploaded (no .devN / a / b / rc builds), and
+#   - the publish jobs use the `pypi` environment; give it required reviewers
+#     (Settings -> Environments) so every upload waits for your approval.
+# Logs in with PyPI Trusted Publishing: add a pending publisher on pypi.org for
+# gnome-night-shift with repository christophermca/gnome-night-shift, workflow
+# `publish-pypi.yml` and environment `pypi`.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # PyGObject builds from source on the runner; it needs these headers.
+      # libglib2.0-bin provides glib-compile-schemas for the schema tests.
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgirepository-2.0-dev libcairo2-dev pkg-config libglib2.0-bin
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+
+      - name: Run tests
+        run: python -m pytest
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgirepository-2.0-dev libcairo2-dev pkg-config libglib2.0-bin
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build . --outdir dist/core            # nocturne-shift
+          python -m twine check --strict dist/*/*
+
+      # Install the freshly built wheel the way a user would, so a broken
+      # package or dependency fails here, not after the upload.
+      #
+      # Untagged commits build dev versions (0.4.4.dev3), which pip skips by
+      # default. Instead of --pre (pre-releases for *every* package, requests
+      # included), pin nocturne-shift to the exact version just built: a
+      # pin that names a pre-release allows it for that package only.
+      - name: Smoke-test the built wheels
+        run: |
+          for wheel in dist/*/*.whl; do
+            file=$(basename "$wheel")          # nocturne_shift-0.4.4.dev3-py3-none-any.whl
+            name=${file%%-*}                   # nocturne_shift
+            version=${file#*-}; version=${version%%-*}   # 0.4.4.dev3
+            echo "${name//_/-}==${version}"
+          done > /tmp/constraints.txt
+          cat /tmp/constraints.txt
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --constraint /tmp/constraints.txt \
+            --find-links dist/core nocturne-shift
+          /tmp/smoke/bin/nocturne-shift --version
+
+      # PyPI is permanent: only upload versions built from a release tag.
+      - name: Refuse dev / pre-release builds
+        run: |
+          if ls dist/core/*.whl | grep -E "\.dev[0-9]+|a[0-9]+-|b[0-9]+-|rc[0-9]+-"; then
+            echo "::error::Not a release build. Tag the commit (cli-vX.Y.Z) and run from it."
+            exit 1
+          fi
+          echo "Release versions only:" && ls dist/core/*.whl
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-dist
+          path: dist/core/
+
+  publish-core:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: core-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # PyPI refuses a version twice; skip instead of failing.
+          skip-existing: true
