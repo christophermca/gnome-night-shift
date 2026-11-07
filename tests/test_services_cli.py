@@ -87,3 +87,18 @@ def test_gnome_night_shift_is_a_console_script():
         if ep.group == "console_scripts"
     }
     assert scripts == {"gnome-night-shift": "night_shift_services.cli:main"}
+
+
+def test_setup_with_a_bad_path_exits_with_a_message(services_class):
+    from night_shift_services.cli import main
+
+    services_class.return_value.setup.side_effect = ValueError(
+        "path contains a control character: '/x\\n'"
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["setup", "/x\n"])
+
+    assert exit_info.value.code == (
+        "gnome-night-shift setup: path contains a control character: '/x\\n'"
+    )

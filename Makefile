@@ -26,7 +26,6 @@ testpypi-wheels: $(PY)
 		--index-url $(TESTPYPI) --dest $(WHEELS) \
 		"$(NOCTURNE_SHIFT)" "$(GNOME_NIGHT_SHIFT)"
 
-# nocturne-shift>=0.5.0 isn't on PyPI yet, so install the core from CORE_DIR.
 dev: $(PY)
 	$(PY) -m pip install -e "$(CORE_DIR)"
 	$(PY) -m pip install -e ".[test,dev]"

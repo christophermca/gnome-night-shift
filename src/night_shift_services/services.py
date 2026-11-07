@@ -97,12 +97,15 @@ class Services:
 
         # Always write copies, so ExecStart gets the real command path even
         # without a schema. Fall back to the packaged units if that fails.
+        program = find_command()
+        for value in (program, schema):
+            if value:
+                _systemd_escape(value)
+
         tmp_dir = Path(tmp_dir) if tmp_dir else units_dir()
         tmp_dir.mkdir(parents=True, exist_ok=True)
 
-        self._make_copy_of_unit(
-            self.all_units, schema, tmp_dir, find_command()
-        )
+        self._make_copy_of_unit(self.all_units, schema, tmp_dir, program)
 
         if any(tmp_dir.iterdir()):  # if directory is not empty
             self._symlink(tmp_dir)

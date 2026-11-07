@@ -241,7 +241,10 @@ def test_make_copy_swaps_in_the_real_command_path(dirs, tmp_path):
     out.mkdir()
 
     Services(source, target)._make_copy_of_unit(
-        [source / "x.service"], "/x/schemas", out, "/opt/pipx/bin/nocturne-shift"
+        [source / "x.service"],
+        "/x/schemas",
+        out,
+        "/opt/pipx/bin/nocturne-shift",
     )
 
     assert (out / "x.service").read_text() == (
@@ -251,12 +254,17 @@ def test_make_copy_swaps_in_the_real_command_path(dirs, tmp_path):
 
 def test_make_copy_quotes_a_path_with_spaces(dirs, tmp_path):
     source, target = dirs
-    (source / "x.service").write_text("[Service]\nExecStart=/bin/nocturne-shift -w\n")
+    (source / "x.service").write_text(
+        "[Service]\nExecStart=/bin/nocturne-shift -w\n"
+    )
     out = tmp_path / "out"
     out.mkdir()
 
     Services(source, target)._make_copy_of_unit(
-        [source / "x.service"], "/my schemas", out, "/home/a b/bin/nocturne-shift"
+        [source / "x.service"],
+        "/my schemas",
+        out,
+        "/home/a b/bin/nocturne-shift",
     )
 
     assert (out / "x.service").read_text() == (
@@ -264,12 +272,17 @@ def test_make_copy_quotes_a_path_with_spaces(dirs, tmp_path):
     )
 
 
-def test_setup_without_schema_still_uses_the_real_path(dirs, mock_run, tmp_path):
+def test_setup_without_schema_still_uses_the_real_path(
+    dirs, mock_run, tmp_path
+):
     source, target = dirs
-    (source / "x.service").write_text("[Service]\nExecStart=%h/.local/bin/nocturne-shift -c\n")
+    (source / "x.service").write_text(
+        "[Service]\nExecStart=%h/.local/bin/nocturne-shift -c\n"
+    )
 
     with patch(
-        "night_shift_services.services.find_command", return_value="/real/nocturne-shift"
+        "night_shift_services.services.find_command",
+        return_value="/real/nocturne-shift",
     ):
         Services(source, target)._create_units(tmp_dir=tmp_path / "gen")
 
@@ -318,7 +331,10 @@ def test_units_dir_defaults_to_local_share(tmp_path, monkeypatch):
     monkeypatch.delenv("XDG_DATA_HOME")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    assert units_dir() == tmp_path / ".local" / "share" / "gnome-night-shift" / "units"
+    assert (
+        units_dir()
+        == tmp_path / ".local" / "share" / "gnome-night-shift" / "units"
+    )
 
 
 def test_setup_writes_units_outside_the_package(dirs, mock_run, tmp_path):
@@ -355,3 +371,53 @@ def test_destroy_keeps_other_files_in_the_units_dir(dirs, mock_run, tmp_path):
     services.destroy()
 
     assert sorted(p.name for p in units.iterdir()) == ["mine.txt"]
+
+
+# ExecStart= escaping: systemd expands %specifiers and $VARS, even in quotes
+LINE_C = "ExecStart=%h/.local/bin/nocturne-shift -c\n"
+UNIT_C = "[Service]\n" + LINE_C
+
+
+def test_exec_start_doubles_percent_and_dollar():
+    from night_shift_services.services import _exec_start
+
+    line = _exec_start(
+        LINE_C, "/opt/100%h/bin/nocturne-shift", "/home/a/$HOME/schemas"
+    )
+
+    assert line == (
+        "ExecStart=/opt/100%%h/bin/nocturne-shift -c '/home/a/$$HOME/schemas'\n"
+    )
+
+
+def test_exec_start_keeps_the_units_own_specifier():
+    from night_shift_services.services import _exec_start
+
+    # no program found: keep %h/.local/bin/nocturne-shift for systemd to expand
+    assert _exec_start(LINE_C, None, "/x/schemas") == (
+        "ExecStart=%h/.local/bin/nocturne-shift -c /x/schemas\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "bad", ["/x\nExecStartPre=/bin/sh -c id", "/x\r/y", "/x\t/y", "/x\0"]
+)
+def test_exec_start_refuses_control_characters(bad):
+    from night_shift_services.services import _exec_start
+
+    with pytest.raises(ValueError, match="control character"):
+        _exec_start(LINE_C, "/bin/nocturne-shift", bad)
+
+
+def test_setup_with_a_bad_path_writes_nothing(dirs, mock_run, tmp_path):
+    source, target = dirs
+    (source / "x.service").write_text(UNIT_C)
+
+    with pytest.raises(ValueError):
+        Services(source, target).setup(
+            "/x\nExecStartPre=/bin/sh", build_only=True
+        )
+
+    assert not (tmp_path / "xdg" / "gnome-night-shift" / "units").exists()
+    assert not target.exists() or not any(target.iterdir())
+    mock_run.assert_not_called()

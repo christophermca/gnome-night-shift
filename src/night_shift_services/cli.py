@@ -1,4 +1,5 @@
 import argparse
+import sys
 import importlib.metadata
 
 try:
@@ -25,7 +26,10 @@ def run(args):
 
     services = NightShiftServices()
     if args.subcommand == "setup":
-        return services.setup(args.schema, args.build_only)
+        try:
+            return services.setup(args.schema, args.build_only)
+        except ValueError as e:
+            sys.exit(f"gnome-night-shift setup: {e}")
     elif args.subcommand == "start":
         return services.start()
     elif args.subcommand == "stop":

@@ -1,7 +1,7 @@
 # gnome-night-shift
 
 Switch GNOME between light and dark at sunrise and sunset:
-systemd timers (`nocturne-shift services`) for the Night Shift extension
+systemd timers (`gnome-night-shift`) for the Night Shift extension
 
 ---
 

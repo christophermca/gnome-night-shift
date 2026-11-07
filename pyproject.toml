@@ -19,7 +19,7 @@ dependencies = [
   "PyGObject>=3.48.0",
 ]
 dynamic = ["version"]
-description = "Switch GNOME between light and dark at sunrise and sunset: systemd timers (`nocturne-shift services`) for the Night Shift extension"
+description = "Switch GNOME between light and dark at sunrise and sunset: systemd timers (`gnome-night-shift`) for the gnome-shell-night-shift-extension"
 keywords = ["gnome", "night shift", "dark mode", "sunrise", "sunset", "theme", "systemd"]
 license = "MIT"
 requires-python = ">=3.10"
