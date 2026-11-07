@@ -1,17 +1,21 @@
 name: Publish to PyPI
 
-# Run by hand: Actions tab -> "Publish to PyPI" -> Run workflow, on a commit
-# tagged gnome-vX.Y.Z (gnome-night-shift)
+# Run by hand from the release tag: Actions -> "Publish to PyPI" -> Run workflow
+# -> Use workflow from -> Tags -> gnome-vX.Y.Z. Run from a branch, any commit
+# after the tag builds a .devN version, which the build job refuses.
 # Uploads to PyPI are permanent, so:
 #   - only release versions are uploaded (no .devN / a / b / rc builds), and
-#   - the publish jobs use the `pypi` environment; give it required reviewers
-#     (Settings -> Environments) so every upload waits for your approval.
+#   - the publish job uses the `pypi` environment; give it required reviewers
+#     and limit it to tags gnome-v* (Settings -> Environments).
 # Logs in with PyPI Trusted Publishing: add a pending publisher on pypi.org for
 # gnome-night-shift with repository christophermca/gnome-night-shift, workflow
 # `publish-pypi.yml` and environment `pypi`.
-
 on:
   workflow_dispatch:
+
+# Read-only token for every job; the publish job adds only id-token: write.
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -27,13 +31,12 @@ jobs:
           cache: pip
 
       # PyGObject builds from source on the runner; it needs these headers.
-      # libglib2.0-bin provides glib-compile-schemas for the schema tests.
-
       - name: Install system libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y libgirepository-2.0-dev libcairo2-dev pkg-config libglib2.0-bin
 
+      # nocturne-shift comes from PyPI, the same release users will get
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -48,71 +51,62 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 0     # setuptools-scm reads the gnome-v* tags
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
 
+      # For the smoke test, which builds PyGObject
       - name: Install system libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgirepository-2.0-dev libcairo2-dev pkg-config libglib2.0-bin
+          sudo apt-get install -y libgirepository-2.0-dev libcairo2-dev pkg-config
 
       - name: Build
         run: |
           python -m pip install --upgrade pip build twine
-          python -m build . --outdir dist/core            # nocturne-shift
-          python -m twine check --strict dist/*/*
-
-      # Install the freshly built wheel the way a user would, so a broken
-      # package or dependency fails here, not after the upload.
-      #
-      # Untagged commits build dev versions (0.4.4.dev3), which pip skips by
-      # default. Instead of --pre (pre-releases for *every* package, requests
-      # included), pin nocturne-shift to the exact version just built: a
-      # pin that names a pre-release allows it for that package only.
-      - name: Smoke-test the built wheels
-        run: |
-          for wheel in dist/*/*.whl; do
-            file=$(basename "$wheel")          # nocturne_shift-0.4.4.dev3-py3-none-any.whl
-            name=${file%%-*}                   # nocturne_shift
-            version=${file#*-}; version=${version%%-*}   # 0.4.4.dev3
-            echo "${name//_/-}==${version}"
-          done > /tmp/constraints.txt
-          cat /tmp/constraints.txt
-          python -m venv /tmp/smoke
-          /tmp/smoke/bin/pip install --constraint /tmp/constraints.txt \
-            --find-links dist/core nocturne-shift
-          /tmp/smoke/bin/nocturne-shift --version
+          python -m build --outdir dist/
+          python -m twine check --strict dist/*
 
       # PyPI is permanent: only upload versions built from a release tag.
       - name: Refuse dev / pre-release builds
         run: |
-          if ls dist/core/*.whl | grep -E "\.dev[0-9]+|a[0-9]+-|b[0-9]+-|rc[0-9]+-"; then
-            echo "::error::Not a release build. Tag the commit (cli-vX.Y.Z) and run from it."
+          if ls dist/*.whl | grep -E "\.dev[0-9]+|a[0-9]+-|b[0-9]+-|rc[0-9]+-"; then
+            echo "::error::Not a release build. Tag the commit (gnome-vX.Y.Z) and run from that tag."
             exit 1
           fi
-          echo "Release versions only:" && ls dist/core/*.whl
+          echo "Release versions only:" && ls dist/*.whl
+
+      # Install the built wheel the way a user would: nocturne-shift and every
+      # other dependency come from PyPI, so a dependency PyPI can't satisfy
+      # fails here, not after the upload.
+      - name: Smoke-test the built wheel
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          /tmp/smoke/bin/nocturne-shift --version
+          /tmp/smoke/bin/nocturne-shift services --help
 
       - uses: actions/upload-artifact@v7
         with:
-          name: core-dist
-          path: dist/core/
+          name: dist
+          path: dist/
 
-  publish-core:
+  publish:
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write
+      id-token: write     # Trusted Publishing; nothing else
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: core-dist
+          name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      # Pinned to a commit: this step holds the upload token
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           # PyPI refuses a version twice; skip instead of failing.
           skip-existing: true
