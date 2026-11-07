@@ -6,6 +6,8 @@ After=geoclue.service network-online.target
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/nocturne-shift -w
+TimeoutStartSec=60
+NoNewPrivileges=yes
 
 
 Restart=no

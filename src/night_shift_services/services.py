@@ -8,6 +8,19 @@ from pathlib import Path
 
 WATCH_OPTION = "-w"
 COMMAND = "nocturne-shift"
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _systemd_escape(value: str) -> str:
+    """Make a path safe to write into an ExecStart= line.
+
+    systemd expands `%h`-style specifiers and `$VAR` in ExecStart=, even
+    inside quotes, so a literal % or $ must be doubled. Control characters
+    can't be written safely at all, so refuse them.
+    """
+    if _CONTROL_CHARS.search(value):
+        raise ValueError(f"path contains a control character: {value!r}")
+    return value.replace("%", "%%").replace("$", "$$")
 
 
 def find_command(name: str = COMMAND) -> str | None:
@@ -31,7 +44,9 @@ def units_dir() -> Path:
     folder is owned by root, and a reinstall replaces it, which would leave
     the systemd links pointing at nothing.
     """
-    data_home = os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    data_home = (
+        os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    )
     return Path(data_home) / "gnome-night-shift" / "units"
 
 
@@ -84,7 +99,9 @@ class Services:
         tmp_dir = Path(tmp_dir) if tmp_dir else units_dir()
         tmp_dir.mkdir(parents=True, exist_ok=True)
 
-        self._make_copy_of_unit(self.all_units, schema, tmp_dir, find_command())
+        self._make_copy_of_unit(
+            self.all_units, schema, tmp_dir, find_command()
+        )
 
         if any(tmp_dir.iterdir()):  # if directory is not empty
             self._symlink(tmp_dir)
@@ -173,7 +190,9 @@ class Services:
 
                         for i, line in enumerate(lines):
                             if line.startswith("ExecStart="):
-                                lines[i] = _exec_start(line, program, schema_path)
+                                lines[i] = _exec_start(
+                                    line, program, schema_path
+                                )
 
                         with open(file_copy, "w") as file:
                             file.writelines(
@@ -205,13 +224,18 @@ class Services:
         self._remove_generated_units()
 
 
-def _exec_start(line: str, program: str | None, schema_path: str | None) -> str:
+def _exec_start(
+    line: str, program: str | None, schema_path: str | None
+) -> str:
     """Rebuild one ExecStart= line: swap in `program`, append the schema."""
     unit_program, *args = shlex.split(line.removeprefix("ExecStart="))
     if schema_path:
         # -c and -w take the schema path themselves; otherwise watch it
         if not args or args[-1] not in ("-c", WATCH_OPTION):
             args.append(WATCH_OPTION)
-        args.append(schema_path)
+
+        args.append(_systemd_escape(schema_path))
+    # Escape only the paths we insert: the unit's own %h is meant for systemd
+    program = _systemd_escape(program) if program else unit_program
     # shlex.join quotes a path with spaces; systemd accepts '...' quoting
-    return "ExecStart=" + shlex.join([program or unit_program, *args]) + "\n"
+    return "ExecStart=" + shlex.join([program, *args]) + "\n"
