@@ -3,8 +3,9 @@ CORE_NAME    := nocturne-shift
 NOCTURNE_SHIFT ?= $(CORE_NAME)
 GNOME_NIGHT_SHIFT ?= $(PROJECT_NAME)
 # Local checkout of the core, for `make dev` (override: make dev CORE_DIR=...)
+TESTPYPI     := https://test.pypi.org/simple/
+WHEELS       := build/testpypi-wheels
 CORE_DIR     ?= ../nocturne-shift
-INDEXES      := --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
 VENV         := venv
 PYTHON       ?= python3
 PY           := $(VENV)/bin/python
@@ -56,7 +57,7 @@ install-dependencies: testpypi-wheels
 # package on its own would look up nocturne-shift by name on PyPI.
 install-global: testpypi-wheels
 	sudo pipx install --global --system-site-packages $(abspath $(WHEELS))/nocturne_shift-*.whl
-	sudo pipx install --global nocturne-shift $(abspath $(WHEELS))/gnome_night_shift-*.whl
+	sudo pipx inject --global nocturne-shift $(abspath $(WHEELS))/gnome_night_shift-*.whl
 
 install-dev: dev
 
