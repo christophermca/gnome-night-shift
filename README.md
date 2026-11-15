@@ -18,6 +18,16 @@ gnome-night-shift start
 gnome-night-shift teardown              # stop and remove the timers
 ```
 
+Install the Night Shift extension first, then run `gnome-night-shift setup`
+once. Without a `SCHEMA_PATH` it uses the schemas GNOME Shell installed with
+the extension, in
+`~/.local/share/gnome-shell/extensions/night-shift@christophermca.github.io/schemas`,
+and stops with a message if they aren't there yet.
+
+If the extension is installed system-wide (for example under
+`/usr/share/gnome-shell/extensions/`), pass its `schemas` folder as
+`SCHEMA_PATH`.
+
 The same actions are also available as `nocturne-shift services ...` when
 `nocturne-shift` is on your PATH.
 
