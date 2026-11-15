@@ -1,11 +1,42 @@
 import argparse
 import sys
 import importlib.metadata
+from pathlib import Path
 
 try:
     __version__ = importlib.metadata.version("gnome-night-shift")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
+
+EXTENSION_UUID = "night-shift@christophermca.github.io"
+
+
+def extension_schema_dir() -> Path:
+    return (
+        Path.home()
+        / ".local"
+        / "share"
+        / "gnome-shell"
+        / "extensions"
+        / EXTENSION_UUID
+        / "schemas"
+    )
+
+
+def check_extension_installed() -> None:
+    """Raise ValueError unless the extension's compiled schema is there.
+
+    Without it the timers still run, every minute, but have nowhere to read
+    or save their settings, so they do nothing. Say so now instead.
+    """
+
+    schemas = extension_schema_dir()
+    if not (schemas / "gschemas.compiled").is_file():
+        raise ValueError(
+            "the Night Shift extension isn't installed "
+            f"(no compiled schema in {schemas}). "
+            "Install it from extensions.gnome.org first, then run setup again."
+        )
 
 
 def register(subparsers):
@@ -27,6 +58,8 @@ def run(args):
     services = NightShiftServices()
     if args.subcommand == "setup":
         try:
+            if args.schema is None:
+                check_extension_installed()
             return services.setup(args.schema, args.build_only)
         except ValueError as e:
             sys.exit(f"gnome-night-shift setup: {e}")

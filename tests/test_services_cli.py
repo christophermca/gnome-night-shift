@@ -102,3 +102,83 @@ def test_setup_with_a_bad_path_exits_with_a_message(services_class):
     assert exit_info.value.code == (
         "gnome-night-shift setup: path contains a control character: '/x\\n'"
     )
+
+
+# `setup` with no path relies on the extension's installed schemas, because
+# that's where nocturne-shift reads its settings from by default.
+EXTENSION_SCHEMAS = ".local/share/gnome-shell/extensions/night-shift@christophermca.github.io/schemas"
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    """An empty home folder: Path.home() reads $HOME."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    return tmp_path
+
+
+def install_extension(home, compiled=True):
+    """Lay out the extension's schemas the way GNOME Shell installs them."""
+    schemas = home / EXTENSION_SCHEMAS
+    schemas.mkdir(parents=True)
+    (
+        schemas / "org.gnome.shell.extensions.night-shift.gschema.xml"
+    ).write_text("<schemalist/>")
+    if compiled:
+        (schemas / "gschemas.compiled").write_bytes(b"")
+    return schemas
+
+
+def test_setup_without_the_extension_exits_with_a_message(
+    services_class, home
+):
+    from night_shift_services.cli import main
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["setup"])
+
+    message = exit_info.value.code
+    assert message.startswith(
+        "gnome-night-shift setup: the Night Shift extension isn't installed"
+    )
+    assert str(home / EXTENSION_SCHEMAS) in message  # says where it looked
+    services_class.return_value.setup.assert_not_called()  # no timers made
+
+
+def test_setup_with_an_uncompiled_schema_exits(services_class, home):
+    """The XML alone isn't enough: nocturne-shift reads gschemas.compiled."""
+    from night_shift_services.cli import main
+
+    install_extension(home, compiled=False)
+
+    with pytest.raises(SystemExit):
+        main(["setup"])
+
+    services_class.return_value.setup.assert_not_called()
+
+
+def test_setup_with_the_extension_installed_runs(services_class, home):
+    from night_shift_services.cli import main
+
+    install_extension(home)
+
+    assert main(["setup"]) == 0
+
+    services_class.return_value.setup.assert_called_once_with(None, False)
+
+
+def test_setup_with_an_explicit_path_skips_the_check(services_class, home):
+    """For system-wide installs and testing: no extension in $HOME needed."""
+    from night_shift_services.cli import main
+
+    assert main(["setup", "/path/to/schemas"]) == 0
+
+    services_class.return_value.setup.assert_called_once_with(
+        "/path/to/schemas", False
+    )
+
+
+def test_nocturne_shift_services_setup_checks_too(services_class, home):
+    with pytest.raises(SystemExit):
+        run_services("setup")
+
+    services_class.return_value.setup.assert_not_called()
