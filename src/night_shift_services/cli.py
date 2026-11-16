@@ -2,7 +2,6 @@ import argparse
 import sys
 import importlib.metadata
 from pathlib import Path
-from nocturne_shift.bin.settings import Settings
 
 try:
     __version__ = importlib.metadata.version("gnome-night-shift")
@@ -54,12 +53,15 @@ def register(subparsers):
 
 
 def forget_last_fetch() -> None:
+    from gi.repository import Gio
     from nocturne_shift.bin.settings import Settings
+    from nocturne_shift.data_store import DataStore
 
-    settings = Settings()
+    settings = Settings(DataStore(str(extension_schema_dir())))
     if not settings.available:
         return
     settings.set("timestamp", "")
+    Gio.Settings.sync()
 
 
 def run(args):

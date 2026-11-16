@@ -182,3 +182,49 @@ def test_nocturne_shift_services_setup_checks_too(services_class, home):
         run_services("setup")
 
     services_class.return_value.setup.assert_not_called()
+
+
+# teardown also clears the extension's `timestamp`, so the extension can tell
+# the timers are gone (it shows its setup reminder when `timestamp` is empty)
+@pytest.fixture
+def extension_settings():
+    """nocturne-shift's Settings, as forget_last_fetch() imports it."""
+    with patch(
+        "nocturne_shift.bin.settings.Settings"
+    ) as settings_class, patch("gi.repository.Gio.Settings.sync") as sync:
+        settings_class.return_value.available = True
+        yield settings_class.return_value, sync
+
+
+def test_teardown_clears_the_extension_timestamp(
+    services_class, extension_settings
+):
+    settings, sync = extension_settings
+
+    run_services("teardown")
+
+    services_class.return_value.destroy.assert_called_once_with()
+    settings.set.assert_called_once_with("timestamp", "")
+    sync.assert_called_once_with()  # the write finishes before the command exits
+
+
+def test_teardown_without_the_extension_leaves_settings_alone(
+    services_class, extension_settings
+):
+    settings, sync = extension_settings
+    settings.available = False  # extension not installed
+
+    run_services("teardown")
+
+    services_class.return_value.destroy.assert_called_once_with()  # still removed
+    settings.set.assert_not_called()
+    sync.assert_not_called()
+
+
+def test_stop_keeps_the_timestamp(services_class, extension_settings):
+    """Only teardown removes the timers for good; stop can be started again."""
+    settings, _ = extension_settings
+
+    run_services("stop")
+
+    settings.set.assert_not_called()

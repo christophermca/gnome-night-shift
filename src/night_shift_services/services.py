@@ -226,11 +226,6 @@ class Services:
         self.stop()
         self._remove_symlink()
         self._remove_generated_units()
-        self._reset_timestamp()
-
-
-def _reset_timestamp():
-    pass
 
 
 def _exec_start(
