@@ -52,6 +52,18 @@ def register(subparsers):
     return handler
 
 
+def forget_last_fetch() -> None:
+    from gi.repository import Gio
+    from nocturne_shift.bin.settings import Settings
+    from nocturne_shift.data_store import DataStore
+
+    settings = Settings(DataStore(str(extension_schema_dir())))
+    if not settings.available:
+        return
+    settings.set("timestamp", "")
+    Gio.Settings.sync()
+
+
 def run(args):
     from . import NightShiftServices
 
@@ -68,7 +80,9 @@ def run(args):
     elif args.subcommand == "stop":
         return services.stop()
     elif args.subcommand == "teardown":
-        return services.destroy()
+        result = services.destroy()
+        forget_last_fetch()
+        return result
 
 
 def main(argv=None):
