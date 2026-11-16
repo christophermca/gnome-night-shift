@@ -9,6 +9,7 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
 
 EXTENSION_UUID = "night-shift@christophermca.github.io"
+EXTENSION_SCHEMA_ID = "org.gnome.shell.extensions.night-shift"
 
 
 def extension_schema_dir() -> Path:
@@ -23,6 +24,39 @@ def extension_schema_dir() -> Path:
     )
 
 
+def night_shift_schema(schema_dir):
+    """The Night Shift extension's schema compiled in `schema_dir`, or None.
+
+    Looked up by its ID, the way nocturne-shift (0.7.3+) finds it, so a
+    folder of some other app's schemas is never mistaken for it.
+    """
+    from gi.repository import Gio, GLib
+
+    try:
+        source = Gio.SettingsSchemaSource.new_from_directory(
+            str(schema_dir), None, False
+        )
+    except GLib.Error:
+        return None  # not a folder, or no gschemas.compiled in it
+    return source.lookup(EXTENSION_SCHEMA_ID, False)
+
+
+u
+
+
+def check_schema_path(schema_dir) -> None:
+    """Raise ValueError unless `schema_dir` holds the extension's schema.
+
+    Without it the timers would run but couldn't save anything, and only
+    log "settings unavailable" every minute. Say so now instead.
+    """
+    if night_shift_schema(schema_dir) is None:
+        raise ValueError(
+            f"{schema_dir} doesn't contain the Night Shift extension's "
+            f"compiled schema ({EXTENSION_SCHEMA_ID})"
+        )
+
+
 def check_extension_installed() -> None:
     """Raise ValueError unless the extension's compiled schema is there.
 
@@ -31,7 +65,7 @@ def check_extension_installed() -> None:
     """
 
     schemas = extension_schema_dir()
-    if not (schemas / "gschemas.compiled").is_file():
+    if night_shift_schema(schemas) is None:
         raise ValueError(
             "the Night Shift extension isn't installed "
             f"(no compiled schema in {schemas}). "
@@ -72,13 +106,18 @@ def run(args):
         try:
             if args.schema is None:
                 check_extension_installed()
+            else:
+                check_schema_path(args.schema)
             return services.setup(args.schema, args.build_only)
         except ValueError as e:
             sys.exit(f"gnome-night-shift setup: {e}")
+
     elif args.subcommand == "start":
         return services.start()
+
     elif args.subcommand == "stop":
         return services.stop()
+
     elif args.subcommand == "teardown":
         result = services.destroy()
         forget_last_fetch()
