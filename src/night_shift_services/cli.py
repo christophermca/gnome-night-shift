@@ -2,6 +2,7 @@ import argparse
 import sys
 import importlib.metadata
 from pathlib import Path
+from nocturne_shift.bin.settings import Settings
 
 try:
     __version__ = importlib.metadata.version("gnome-night-shift")
@@ -52,6 +53,15 @@ def register(subparsers):
     return handler
 
 
+def forget_last_fetch() -> None:
+    from nocturne_shift.bin.settings import Settings
+
+    settings = Settings()
+    if not settings.available:
+        return
+    settings.set("timestamp", "")
+
+
 def run(args):
     from . import NightShiftServices
 
@@ -68,7 +78,9 @@ def run(args):
     elif args.subcommand == "stop":
         return services.stop()
     elif args.subcommand == "teardown":
-        return services.destroy()
+        result = services.destroy()
+        forget_last_fetch()
+        return result
 
 
 def main(argv=None):
