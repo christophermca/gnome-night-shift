@@ -41,9 +41,6 @@ def night_shift_schema(schema_dir):
     return source.lookup(EXTENSION_SCHEMA_ID, False)
 
 
-u
-
-
 def check_schema_path(schema_dir) -> None:
     """Raise ValueError unless `schema_dir` holds the extension's schema.
 

@@ -95,13 +95,13 @@ def test_bare_services_prints_help_and_does_nothing(services_class, capsys):
 
 
 # `gnome-night-shift ...`: the same actions as `nocturne-shift services ...`
-def test_gnome_night_shift_setup(services_class):
+def test_gnome_night_shift_setup(services_class, schema_dir):
     from night_shift_services.cli import main
 
-    assert main(["setup", "/path/to/schemas", "--build-only"]) == 0
+    assert main(["setup", str(schema_dir), "--build-only"]) == 0
 
     services_class.return_value.setup.assert_called_once_with(
-        "/path/to/schemas", True
+        str(schema_dir), True
     )
 
 
@@ -150,7 +150,7 @@ def test_setup_with_a_bad_path_exits_with_a_message(
         main(["setup", str(bad_schema)])
 
     assert exit_info.value.code == (
-        f"gnome-night-shift setup: path contains a control character: {str(bad_schema)}"
+        "gnome-night-shift setup: path contains a control character: '/x\\n'"
     )
 
 
