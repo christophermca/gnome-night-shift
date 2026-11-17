@@ -1,9 +1,56 @@
 import argparse
 from unittest.mock import patch
+import shutil
+import subprocess
 
 import pytest
 
 from night_shift_services.cli import register
+
+NIGHT_SHIFT_XML = """<schemalist>
+  <schema id="org.gnome.shell.extensions.night-shift"
+          path="/org/gnome/shell/extensions/night-shift/">
+    <key name="timestamp" type="s"><default>""</default></key>
+  </schema>
+</schemalist>"""
+
+# Another app's schema: a folder holding only this is the wrong folder
+OTHER_APP_XML = """<schemalist>
+  <schema id="com.example.other" path="/com/example/other/">
+    <key name="timestamp" type="s"><default>""</default></key>
+  </schema>
+</schemalist>"""
+
+
+@pytest.fixture
+def make_schemas(tmp_path):
+    """make_schemas(folder, night_shift=True, other_app=False, compile=True)
+    writes the chosen schemas into tmp_path/folder and compiles them."""
+    if shutil.which("glib-compile-schemas") is None:
+        pytest.skip("glib-compile-schemas is not installed")
+
+    def make(folder, night_shift=True, other_app=False, compile=True):
+        schemas = tmp_path / folder
+        schemas.mkdir(parents=True)
+        if night_shift:
+            (
+                schemas / "org.gnome.shell.extensions.night-shift.gschema.xml"
+            ).write_text(NIGHT_SHIFT_XML)
+        if other_app:
+            (schemas / "com.example.other.gschema.xml").write_text(
+                OTHER_APP_XML
+            )
+        if compile:
+            subprocess.run(["glib-compile-schemas", str(schemas)], check=True)
+        return schemas
+
+    return make
+
+
+@pytest.fixture
+def schema_dir(make_schemas):
+    """A folder with the Night Shift extension's compiled schema."""
+    return make_schemas("schemas")
 
 
 @pytest.fixture
@@ -20,12 +67,12 @@ def run_services(*args):
     return handler(parser.parse_args(["services", *args]))
 
 
-def test_setup_builds_units_for_the_schema(services_class):
-    run_services("setup", "/path/to/schemas", "--build-only")
+def test_setup_builds_units_for_the_schema(services_class, schema_dir):
+    run_services("setup", str(schema_dir), "--build-only")
 
     services_class.assert_called_once_with()
     services_class.return_value.setup.assert_called_once_with(
-        "/path/to/schemas", True
+        str(schema_dir), True
     )
 
 
@@ -48,13 +95,13 @@ def test_bare_services_prints_help_and_does_nothing(services_class, capsys):
 
 
 # `gnome-night-shift ...`: the same actions as `nocturne-shift services ...`
-def test_gnome_night_shift_setup(services_class):
+def test_gnome_night_shift_setup(services_class, schema_dir):
     from night_shift_services.cli import main
 
-    assert main(["setup", "/path/to/schemas", "--build-only"]) == 0
+    assert main(["setup", str(schema_dir), "--build-only"]) == 0
 
     services_class.return_value.setup.assert_called_once_with(
-        "/path/to/schemas", True
+        str(schema_dir), True
     )
 
 
@@ -89,7 +136,10 @@ def test_gnome_night_shift_is_a_console_script():
     assert scripts == {"gnome-night-shift": "night_shift_services.cli:main"}
 
 
-def test_setup_with_a_bad_path_exits_with_a_message(services_class):
+def test_setup_with_a_bad_path_exits_with_a_message(
+    services_class, make_schemas
+):
+    bad_schema = make_schemas("x\n")
     from night_shift_services.cli import main
 
     services_class.return_value.setup.side_effect = ValueError(
@@ -97,7 +147,7 @@ def test_setup_with_a_bad_path_exits_with_a_message(services_class):
     )
 
     with pytest.raises(SystemExit) as exit_info:
-        main(["setup", "/x\n"])
+        main(["setup", str(bad_schema)])
 
     assert exit_info.value.code == (
         "gnome-night-shift setup: path contains a control character: '/x\\n'"
@@ -122,9 +172,11 @@ def install_extension(home, compiled=True):
     schemas.mkdir(parents=True)
     (
         schemas / "org.gnome.shell.extensions.night-shift.gschema.xml"
-    ).write_text("<schemalist/>")
+    ).write_text(NIGHT_SHIFT_XML)
     if compiled:
-        (schemas / "gschemas.compiled").write_bytes(b"")
+        if shutil.which("glib-compile-schemas") is None:
+            pytest.skip("glib-compile-schemas is not installed")
+        subprocess.run(["glib-compile-schemas", str(schemas)], check=True)
     return schemas
 
 
@@ -166,15 +218,62 @@ def test_setup_with_the_extension_installed_runs(services_class, home):
     services_class.return_value.setup.assert_called_once_with(None, False)
 
 
-def test_setup_with_an_explicit_path_skips_the_check(services_class, home):
-    """For system-wide installs and testing: no extension in $HOME needed."""
+def test_setup_with_an_explicit_schema_path(services_class, home, schema_dir):
+    """For system-wide extension installs: no extension in $HOME needed."""
     from night_shift_services.cli import main
 
-    assert main(["setup", "/path/to/schemas"]) == 0
+    assert main(["setup", str(schema_dir)]) == 0
 
     services_class.return_value.setup.assert_called_once_with(
-        "/path/to/schemas", False
+        str(schema_dir), False
     )
+
+
+@pytest.mark.parametrize(
+    "folder_kwargs, why",
+    [
+        (dict(night_shift=False, other_app=True), "another app's schema"),
+        (dict(night_shift=True, compile=False), "not compiled"),
+        (dict(night_shift=False, other_app=False), "empty folder"),
+    ],
+)
+def test_setup_refuses_a_path_without_the_night_shift_schema(
+    services_class, make_schemas, folder_kwargs, why
+):
+    from night_shift_services.cli import main
+
+    wrong = make_schemas("wrong", **folder_kwargs)
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["setup", str(wrong)])
+
+    message = exit_info.value.code
+    assert message == (
+        f"gnome-night-shift setup: {wrong} doesn't contain the Night Shift "
+        "extension's compiled schema (org.gnome.shell.extensions.night-shift)"
+    ), why
+    services_class.return_value.setup.assert_not_called()  # no timers made
+
+
+def test_setup_refuses_a_path_that_does_not_exist(services_class, tmp_path):
+    from night_shift_services.cli import main
+
+    with pytest.raises(SystemExit):
+        main(["setup", str(tmp_path / "no-such-folder")])
+
+    services_class.return_value.setup.assert_not_called()
+
+
+def test_setup_accepts_a_shared_folder_with_the_night_shift_schema(
+    services_class, make_schemas
+):
+    """Like /usr/share/glib-2.0/schemas: many schemas, found by ID (as
+    nocturne-shift 0.7.3+ finds it too)."""
+    from night_shift_services.cli import main
+
+    shared = make_schemas("shared", night_shift=True, other_app=True)
+
+    assert main(["setup", str(shared)]) == 0
 
 
 def test_nocturne_shift_services_setup_checks_too(services_class, home):
