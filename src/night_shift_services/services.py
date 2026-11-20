@@ -10,7 +10,9 @@ from .systemd_manager import SystemdError, SystemdManager
 
 WATCH_OPTION = "-w"
 COMMAND = "nocturne-shift"
-_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+_CONTROL_CHARS = re.compile(
+    r"[\x00-\x1f\x7f]"
+)  # Removes non printable chars ie(<tab>,<null>)
 
 
 def _systemd_escape(value: str) -> str:
