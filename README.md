@@ -41,4 +41,7 @@ pipx install --system-site-packages gnome-night-shift
 Requires Linux with systemd. If pipx tries to build PyGObject anyway (its uv
 backend ignores system packages), add `--backend pip`.
 
-[![Publish to PyPI](https://github.com/christophermca/gnome-night-shift/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/christophermca/gnome-night-shift/actions/workflows/publish-pypi.yml)
+[![PyPI](https://img.shields.io/pypi/v/gnome-night-shift)](https://pypi.org/project/gnome-night-shift/)
+
+
+[![Publish to PyPI](https://github.com/christophermca/gnome-night-shift/actions/workflows/test.yml/badge.svg)](https://github.com/christophermca/gnome-night-shift/actions/workflows/test.yml)
