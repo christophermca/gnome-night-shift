@@ -156,13 +156,13 @@ class Services:
         except SystemdError as e:
             print(f"Error: {e}")
 
-    def _restart_services(self):
-        # systemctl --user restart SERVICE...: run each one now. Sorted so
+    def _run_services_once(self):
+        # systemctl --user restart SERVICE...: run each one now, once. Sorted so
         # get-sunrise-sunset.service (the fetch) is queued before
         # night-shift.service (the day/night check).
         try:
             for service in sorted(unit.name for unit in self.services):
-                print(f"Restarting: {service}")
+                print(f"Running: {service}")
                 self.systemd.restart(service)
         except SystemdError as e:
             print(f"Error: {e}")
@@ -256,8 +256,8 @@ class Services:
     def stop(self):
         self._stop_services()
 
-    def restart(self):
-        self._restart_services()
+    def run_once(self):
+        self._run_services_once()
 
     def destroy(self):
         self.stop()

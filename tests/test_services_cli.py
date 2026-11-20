@@ -81,7 +81,7 @@ def test_setup_builds_units_for_the_schema(services_class, schema_dir):
     [
         ("start", "start"),
         ("stop", "stop"),
-        ("restart", "restart"),
+        ("run-once", "run_once"),
         ("teardown", "destroy"),
     ],
 )
@@ -115,7 +115,7 @@ def test_gnome_night_shift_setup(services_class, schema_dir):
     [
         ("start", "start"),
         ("stop", "stop"),
-        ("restart", "restart"),
+        ("run-once", "run_once"),
         ("teardown", "destroy"),
     ],
 )

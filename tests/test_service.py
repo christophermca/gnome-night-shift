@@ -145,7 +145,7 @@ def test_services_never_start_systemctl(dirs, mock_systemd):
     with patch("subprocess.run") as run, patch("subprocess.Popen") as popen:
         services = Services(source, target)
         services.setup("/x/schemas")
-        services.restart()
+        services.run_once()
         services.destroy()
 
     run.assert_not_called()
@@ -164,7 +164,7 @@ def test_start_services_catches_systemd_failure(dirs, mock_systemd, capsys):
     mock_systemd.start.assert_not_called()
 
 
-def test_restart_runs_each_service_fetch_first(tmp_path, mock_systemd):
+def test_run_once_runs_each_service_fetch_first(tmp_path, mock_systemd):
     source = tmp_path / "units"
     source.mkdir()
     for name in [
@@ -175,7 +175,7 @@ def test_restart_runs_each_service_fetch_first(tmp_path, mock_systemd):
     ]:
         (source / name).write_text("[Unit]\n")
 
-    Services(source, tmp_path / "target").restart()
+    Services(source, tmp_path / "target").run_once()
 
     # only the services, never the timers; the fetch is queued first
     assert mock_systemd.restart.call_args_list == [
@@ -184,11 +184,11 @@ def test_restart_runs_each_service_fetch_first(tmp_path, mock_systemd):
     ]
 
 
-def test_restart_catches_systemd_failure(dirs, mock_systemd, capsys):
+def test_run_once_catches_systemd_failure(dirs, mock_systemd, capsys):
     source, target = dirs
     mock_systemd.restart.side_effect = SystemdError("RestartUnit failed: nope")
 
-    Services(source, target).restart()
+    Services(source, target).run_once()
 
     assert "Error: RestartUnit failed: nope" in capsys.readouterr().out
 
