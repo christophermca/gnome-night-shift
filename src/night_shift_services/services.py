@@ -75,10 +75,6 @@ class Services:
             unit for unit in list_of_units if unit.name.endswith(".service")
         ]
 
-        self.services = [
-            unit for unit in list_of_units if unit.name.endswith(".service")
-        ]
-
     def _symlink(self, source: str | None = None):
         source = source if source is not None else self.source_dir
         Path(self.target_dir).mkdir(parents=True, exist_ok=True)
@@ -166,24 +162,6 @@ class Services:
                 self.systemd.restart(service)
         except SystemdError as e:
             print(f"Error: {e}")
-
-    def restart_services():
-        try:
-            self._daemon_reload()
-
-            for service_unit in self.services:
-                print(f"Restarting Service: {service_unit.name}")
-
-                subprocess.run(
-                    ["systemctl", "--user", "restart", service_unit.name],
-                    check=True,
-                )
-
-        except subprocess.CalledProcessError as e:
-            print(f"Error: {e}")
-
-        finally:
-            print("\n")
 
     def _remove_generated_units(self, units: Path | None = None):
         """Delete the unit files setup wrote. Only ours, by name."""
