@@ -15,8 +15,12 @@ systemd timers that run it, managed with the `gnome-night-shift` command:
 gnome-night-shift setup [SCHEMA_PATH]   # write, link and start the timers
 gnome-night-shift stop
 gnome-night-shift start
+gnome-night-shift restart               # run the fetch and the day/night check now
 gnome-night-shift teardown              # stop and remove the timers
 ```
+
+It talks to your user systemd over the session bus (the D-Bus API that
+`systemctl --user` uses), so it doesn't need `systemctl` itself.
 
 Install the Night Shift extension first, then run `gnome-night-shift setup`
 once. Without a `SCHEMA_PATH` it uses the schemas GNOME Shell installed with

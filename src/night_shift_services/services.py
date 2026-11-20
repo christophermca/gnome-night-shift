@@ -3,9 +3,10 @@ import sys
 import re
 import os
 import shlex
-import subprocess
 import shutil
 from pathlib import Path
+
+from .systemd_manager import SystemdError, SystemdManager
 
 WATCH_OPTION = "-w"
 COMMAND = "nocturne-shift"
@@ -52,9 +53,11 @@ def units_dir() -> Path:
 
 
 class Services:
-    def __init__(self, source_dir="", target_dir=""):
+    def __init__(self, source_dir="", target_dir="", systemd=None):
         self.source_dir = source_dir
         self.target_dir = target_dir
+        # This user's systemd, over the session bus (`systemd` is for tests)
+        self.systemd = systemd if systemd is not None else SystemdManager()
 
         if sys.platform != "linux":
             sys.exit("Error: Systemd units can ony be deployed on linux")
@@ -67,6 +70,9 @@ class Services:
         self.all_units = list_of_units
         self.timers = [
             unit for unit in list_of_units if unit.name.endswith(".timer")
+        ]
+        self.services = [
+            unit for unit in list_of_units if unit.name.endswith(".service")
         ]
 
         self.services = [
@@ -118,42 +124,47 @@ class Services:
 
     def _daemon_reload(self) -> None:
         try:
-            subprocess.run(
-                ["systemctl", "--user", "daemon-reload"], check=True
-            )
-        except subprocess.CalledProcessError as e:
+            self.systemd.reload()
+        except SystemdError as e:
             print(f"Error: {e}")
 
     def _start_services(self):
+        # systemctl --user enable --now TIMER...
+        timers = [timer.name for timer in self.timers]
         try:
-            self._daemon_reload()
-
-            for timer in self.timers:
-                print(f"Starting timer: {timer.name}")
-
-                subprocess.run(
-                    ["systemctl", "--user", "enable", "--now", timer.name],
-                    check=True,
-                )
-        except subprocess.CalledProcessError as e:
+            self.systemd.reload()  # pick up the unit files setup just linked
+            self.systemd.enable(timers)
+            self.systemd.reload()  # as systemctl does after enabling
+            for timer in timers:
+                print(f"Starting timer: {timer}")
+                self.systemd.start(timer)
+        except SystemdError as e:
             print(f"Error: {e}")
 
         finally:
             print("\n")
 
     def _stop_services(self):
+        # systemctl --user disable --now TIMER...
+        timers = [timer.name for timer in self.timers]
         try:
-            self._daemon_reload()
+            self.systemd.disable(timers)
+            self.systemd.reload()
+            for timer in timers:
+                print(f"stopping timer: {timer}")
+                self.systemd.stop(timer)
+        except SystemdError as e:
+            print(f"Error: {e}")
 
-            for timer in self.timers:
-                print(f"stopping timer: {timer.name}")
-
-                subprocess.run(
-                    ["systemctl", "--user", "disable", "--now", timer.name],
-                    check=True,
-                )
-
-        except subprocess.CalledProcessError as e:
+    def _restart_services(self):
+        # systemctl --user restart SERVICE...: run each one now. Sorted so
+        # get-sunrise-sunset.service (the fetch) is queued before
+        # night-shift.service (the day/night check).
+        try:
+            for service in sorted(unit.name for unit in self.services):
+                print(f"Restarting: {service}")
+                self.systemd.restart(service)
+        except SystemdError as e:
             print(f"Error: {e}")
 
     def restart_services():

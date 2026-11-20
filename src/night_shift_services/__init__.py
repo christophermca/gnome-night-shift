@@ -25,5 +25,8 @@ class NightShiftServices(Services):
     def stop(self):
         super().stop()
 
+    def restart(self):
+        super().restart()
+
     def destroy(self):
         super().destroy()
