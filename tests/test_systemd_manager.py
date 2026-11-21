@@ -11,7 +11,7 @@ import threading
 import pytest
 from gi.repository import Gio, GLib
 
-from night_shift_services.systemd_manager import (
+from gnome_night_shift_services.systemd_manager import (
     BUS_NAME,
     MANAGER,
     OBJECT_PATH,

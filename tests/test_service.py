@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 from unittest.mock import patch, call
-from night_shift_services import Services, NightShiftServices
-from night_shift_services.systemd_manager import SystemdError
+from gnome_night_shift_services import Services, NightShiftServices
+from gnome_night_shift_services.systemd_manager import SystemdError
 
 UNITS = ["a.timer", "a.service", "b.timer"]
 
@@ -40,7 +40,9 @@ def dirs(tmp_path):
 def mock_systemd():
     """Every Services in these tests gets a fake SystemdManager: nothing
     here may talk to the real session bus."""
-    with patch("night_shift_services.services.SystemdManager") as manager:
+    with patch(
+        "gnome_night_shift_services.services.SystemdManager"
+    ) as manager:
         yield manager.return_value
 
 
@@ -332,7 +334,7 @@ def test_setup_without_schema_still_uses_the_real_path(
     )
 
     with patch(
-        "night_shift_services.services.find_command",
+        "gnome_night_shift_services.services.find_command",
         return_value="/real/nocturne-shift",
     ):
         Services(source, target)._create_units(tmp_dir=tmp_path / "gen")
@@ -343,7 +345,7 @@ def test_setup_without_schema_still_uses_the_real_path(
 
 
 def test_find_command_prefers_the_one_next_to_python(tmp_path, monkeypatch):
-    from night_shift_services.services import find_command
+    from gnome_night_shift_services.services import find_command
 
     script = tmp_path / "nocturne-shift"
     script.write_text("#!/bin/sh\n")
@@ -355,7 +357,7 @@ def test_find_command_prefers_the_one_next_to_python(tmp_path, monkeypatch):
 
 
 def test_find_command_falls_back_to_path(tmp_path, monkeypatch):
-    from night_shift_services.services import find_command
+    from gnome_night_shift_services.services import find_command
 
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -369,7 +371,7 @@ def test_find_command_falls_back_to_path(tmp_path, monkeypatch):
 
 
 def test_units_dir_follows_xdg_data_home(tmp_path, monkeypatch):
-    from night_shift_services.services import units_dir
+    from gnome_night_shift_services.services import units_dir
 
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 
@@ -377,7 +379,7 @@ def test_units_dir_follows_xdg_data_home(tmp_path, monkeypatch):
 
 
 def test_units_dir_defaults_to_local_share(tmp_path, monkeypatch):
-    from night_shift_services.services import units_dir
+    from gnome_night_shift_services.services import units_dir
 
     monkeypatch.delenv("XDG_DATA_HOME")
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -389,7 +391,7 @@ def test_units_dir_defaults_to_local_share(tmp_path, monkeypatch):
 
 
 def test_setup_writes_units_outside_the_package(dirs, mock_systemd, tmp_path):
-    import night_shift_services
+    import gnome_night_shift_services
 
     source, target = dirs
     Services(source, target).setup("/x/schemas", build_only=True)
@@ -399,7 +401,9 @@ def test_setup_writes_units_outside_the_package(dirs, mock_systemd, tmp_path):
     assert all(
         os.readlink(target / name) == str(units / name) for name in UNITS
     )
-    assert not (Path(night_shift_services.__file__).parent / "tmp").exists()
+    assert not (
+        Path(gnome_night_shift_services.__file__).parent / "tmp"
+    ).exists()
 
 
 def test_destroy_removes_the_generated_units(dirs, mock_systemd, tmp_path):
@@ -432,7 +436,7 @@ UNIT_C = "[Service]\n" + LINE_C
 
 
 def test_exec_start_doubles_percent_and_dollar():
-    from night_shift_services.services import _exec_start
+    from gnome_night_shift_services.services import _exec_start
 
     line = _exec_start(
         LINE_C, "/opt/100%h/bin/nocturne-shift", "/home/a/$HOME/schemas"
@@ -444,7 +448,7 @@ def test_exec_start_doubles_percent_and_dollar():
 
 
 def test_exec_start_keeps_the_units_own_specifier():
-    from night_shift_services.services import _exec_start
+    from gnome_night_shift_services.services import _exec_start
 
     # no program found: keep %h/.local/bin/nocturne-shift for systemd to expand
     assert _exec_start(LINE_C, None, "/x/schemas") == (
@@ -456,7 +460,7 @@ def test_exec_start_keeps_the_units_own_specifier():
     "bad", ["/x\nExecStartPre=/bin/sh -c id", "/x\r/y", "/x\t/y", "/x\0"]
 )
 def test_exec_start_refuses_control_characters(bad):
-    from night_shift_services.services import _exec_start
+    from gnome_night_shift_services.services import _exec_start
 
     with pytest.raises(ValueError, match="control character"):
         _exec_start(LINE_C, "/bin/nocturne-shift", bad)
