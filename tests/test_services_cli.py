@@ -78,7 +78,12 @@ def test_setup_builds_units_for_the_schema(services_class, schema_dir):
 
 @pytest.mark.parametrize(
     "subcommand, method",
-    [("start", "start"), ("stop", "stop"), ("teardown", "destroy")],
+    [
+        ("start", "start"),
+        ("stop", "stop"),
+        ("run-once", "run_once"),
+        ("teardown", "destroy"),
+    ],
 )
 def test_subcommands(services_class, subcommand, method):
     run_services(subcommand)
@@ -107,7 +112,12 @@ def test_gnome_night_shift_setup(services_class, schema_dir):
 
 @pytest.mark.parametrize(
     "subcommand, method",
-    [("start", "start"), ("stop", "stop"), ("teardown", "destroy")],
+    [
+        ("start", "start"),
+        ("stop", "stop"),
+        ("run-once", "run_once"),
+        ("teardown", "destroy"),
+    ],
 )
 def test_gnome_night_shift_subcommands(services_class, subcommand, method):
     from night_shift_services.cli import main
