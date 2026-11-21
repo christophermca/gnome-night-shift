@@ -62,3 +62,11 @@ install-dev: dev
 
 upgrade-dev: $(PY)
 	$(PY) -m pip install --upgrade .
+
+validate-release: $(PY)
+	pipx install --force --system-site-packages .
+	gnome-night-shift setup
+	systemctl --user list-timers | grep -i sun     # both timers listed
+	gnome-night-shift run-once
+	journalctl --user -u get-sunrise-sunset.service -n 5
+	gnome-night-shift teardown                     # timers gone
