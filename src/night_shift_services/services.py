@@ -55,11 +55,11 @@ def units_dir() -> Path:
 
 
 class Services:
-    def __init__(self, source_dir="", target_dir="", systemd=None):
+    def __init__(self, source_dir="", target_dir=""):
         self.source_dir = source_dir
         self.target_dir = target_dir
-        # This user's systemd, over the session bus (`systemd` is for tests)
-        self.systemd = systemd if systemd is not None else SystemdManager()
+        # This user's systemd, over the session bus (what systemctl --user uses)
+        self.systemd = SystemdManager()
 
         if sys.platform != "linux":
             sys.exit("Error: Systemd units can ony be deployed on linux")
