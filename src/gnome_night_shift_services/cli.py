@@ -115,6 +115,9 @@ def run(args):
     elif args.subcommand == "stop":
         return services.stop()
 
+    elif args.subcommand == "run-once":
+        return services.run_once()
+
     elif args.subcommand == "teardown":
         result = services.destroy()
         forget_last_fetch()
@@ -122,7 +125,7 @@ def run(args):
 
 
 def main(argv=None):
-    """The `gnome-night-shift` command: setup/start/stop/teardown on their own.
+    """The `gnome-night-shift` command: setup/start/stop/run-once/teardown.
 
     gnome-night-shift needs a command of its own so `pipx install
     gnome-night-shift` links one onto PATH (pipx only links the commands of
@@ -173,13 +176,18 @@ def setup_arguments(subparsers):
 
 
 def _add_actions(action_parser):
-    """setup/start/stop/teardown, shared by both commands."""
+    """setup/start/stop/run-once/teardown, shared by both commands."""
     stop_action_parser = action_parser.add_parser(
         "stop", help="Stops night-shift services"
     )
 
     start_action_parser = action_parser.add_parser(
         "start", help="Starts night-shift services"
+    )
+
+    run_once_action_parser = action_parser.add_parser(
+        "run-once",
+        help="Runs the services now: fetch the times, then check day or night",
     )
 
     build_action_parser = action_parser.add_parser(

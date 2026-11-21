@@ -1,9 +1,12 @@
-# `Services` creates symlinks in ~/.local/share/systemd/user and runs
-# `systemctl`. Running that for real in a test would change your actual
-# machine, so we split it two ways:
+# `Services` creates symlinks in ~/.local/share/systemd/user and asks this
+# user's systemd (over the session bus) to enable and start the timers.
+# Running that for real in a test would change your actual machine, so we
+# split it two ways:
 #   - filesystem: use a REAL temp directory, since symlinks are cheap and
 #                 checking real files is more convincing than mocking `os`
-#   - systemctl:  MOCK it, since it has side effects we can't undo or run in CI
+#   - systemd:    MOCK SystemdManager, since it has side effects we can't
+#                 undo or run in CI (tests/test_systemd_manager.py checks the
+#                 D-Bus calls themselves against a fake systemd)
 # Picking "real where it's cheap and safe, fake where it isn't" is the core
 # judgment call in unit testing.
 import os
@@ -11,7 +14,8 @@ from pathlib import Path
 import pytest
 
 from unittest.mock import patch, call
-from night_shift_services import Services, NightShiftServices
+from gnome_night_shift_services import Services, NightShiftServices
+from gnome_night_shift_services.systemd_manager import SystemdError
 
 UNITS = ["a.timer", "a.service", "b.timer"]
 
@@ -32,10 +36,14 @@ def dirs(tmp_path):
     return source, target
 
 
-@pytest.fixture
-def mock_run():
-    with patch("subprocess.run") as run:
-        yield run
+@pytest.fixture(autouse=True)
+def mock_systemd():
+    """Every Services in these tests gets a fake SystemdManager: nothing
+    here may talk to the real session bus."""
+    with patch(
+        "gnome_night_shift_services.services.SystemdManager"
+    ) as manager:
+        yield manager.return_value
 
 
 def test_init_collects_units_and_timers(dirs):
@@ -89,60 +97,106 @@ def test_symlink_skips_regular_file(dirs, capsys):
     assert "skipping a.timer :: file exists" in capsys.readouterr().out
 
 
-def test_setup_links_then_reloads_daemon(dirs, mock_run):
+def test_setup_links_then_reloads_daemon(dirs, mock_systemd):
     _, target = dirs
 
     Services(_, target).setup()
 
     assert (target / "a.timer").is_symlink()
-    assert mock_run.call_args_list[0] == call(
-        ["systemctl", "--user", "daemon-reload"], check=True
-    )
+    # the new unit files must be loaded before anything is enabled
+    assert mock_systemd.method_calls[0] == call.reload()
 
 
-def test_start_services_enables_every_timer(dirs, mock_run):
+def test_start_services_enables_and_starts_every_timer(dirs, mock_systemd):
     source, target = dirs
     Services(source, target)._start_services()
 
-    for timer in ["a.timer", "b.timer"]:
-        mock_run.assert_any_call(
-            ["systemctl", "--user", "enable", "--now", timer], check=True
-        )
+    (timers,), _ = mock_systemd.enable.call_args
+    assert sorted(timers) == ["a.timer", "b.timer"]
+    assert sorted(c.args[0] for c in mock_systemd.start.call_args_list) == [
+        "a.timer",
+        "b.timer",
+    ]
+    # `enable --now`: enabled (and reloaded) before started
+    names = [c[0] for c in mock_systemd.method_calls]
+    assert names.index("enable") < names.index("start")
 
 
-def test_stop_services_disables_every_timer(dirs, mock_run):
+def test_stop_services_disables_and_stops_every_timer(dirs, mock_systemd):
     source, target = dirs
     Services(source, target)._stop_services()
 
-    for timer in ["a.timer", "b.timer"]:
-        mock_run.assert_any_call(
-            ["systemctl", "--user", "disable", "--now", timer], check=True
-        )
+    (timers,), _ = mock_systemd.disable.call_args
+    assert sorted(timers) == ["a.timer", "b.timer"]
+    assert sorted(c.args[0] for c in mock_systemd.stop.call_args_list) == [
+        "a.timer",
+        "b.timer",
+    ]
 
 
-def test_stop_services_reloads_daemon(dirs, mock_run):
+def test_stop_services_reloads_daemon(dirs, mock_systemd):
     source, target = dirs
     Services(source, target)._stop_services()
 
-    assert mock_run.call_args_list[0] == call(
-        ["systemctl", "--user", "daemon-reload"], check=True
+    mock_systemd.reload.assert_called()
+
+
+def test_services_never_start_systemctl(dirs, mock_systemd):
+    """Everything goes over D-Bus: no `systemctl` process."""
+    source, target = dirs
+    with patch("subprocess.run") as run, patch("subprocess.Popen") as popen:
+        services = Services(source, target)
+        services.setup("/x/schemas")
+        services.run_once()
+        services.destroy()
+
+    run.assert_not_called()
+    popen.assert_not_called()
+
+
+def test_start_services_catches_systemd_failure(dirs, mock_systemd, capsys):
+    source, target = dirs
+    mock_systemd.enable.side_effect = SystemdError(
+        "EnableUnitFiles failed: Unit file a.timer does not exist."
     )
-
-
-def test_start_services_catches_systemctl_failure(dirs, mock_run, capsys):
-    source, target = dirs
-
-    import subprocess
-
-    mock_run.side_effect = subprocess.CalledProcessError(1, "systemctl")
 
     Services(source, target)._start_services()
 
-    assert "Error:" in capsys.readouterr().out
+    assert "Error: EnableUnitFiles failed" in capsys.readouterr().out
+    mock_systemd.start.assert_not_called()
+
+
+def test_run_once_runs_each_service_fetch_first(tmp_path, mock_systemd):
+    source = tmp_path / "units"
+    source.mkdir()
+    for name in [
+        "night-shift.service",
+        "night-shift.timer",
+        "get-sunrise-sunset.service",
+        "get-sunrise-sunset.timer",
+    ]:
+        (source / name).write_text("[Unit]\n")
+
+    Services(source, tmp_path / "target").run_once()
+
+    # only the services, never the timers; the fetch is queued first
+    assert mock_systemd.restart.call_args_list == [
+        call("get-sunrise-sunset.service"),
+        call("night-shift.service"),
+    ]
+
+
+def test_run_once_catches_systemd_failure(dirs, mock_systemd, capsys):
+    source, target = dirs
+    mock_systemd.restart.side_effect = SystemdError("RestartUnit failed: nope")
+
+    Services(source, target).run_once()
+
+    assert "Error: RestartUnit failed: nope" in capsys.readouterr().out
 
 
 # Test method: destroy()
-def test_destroy_removes_symlinks(dirs, mock_run):
+def test_destroy_removes_symlinks(dirs, mock_systemd):
     _, target = dirs
     services = Services(_, target)
     services._symlink()
@@ -152,7 +206,7 @@ def test_destroy_removes_symlinks(dirs, mock_run):
     assert list(target.iterdir()) == []
 
 
-def test_destroy_keeps_custom_user_unit_files(dirs, mock_run):
+def test_destroy_keeps_custom_user_unit_files(dirs, mock_systemd):
     source, target = dirs
     target.mkdir()
     (target / "a.timer").write_text("new custom user unit")
@@ -162,7 +216,7 @@ def test_destroy_keeps_custom_user_unit_files(dirs, mock_run):
     assert (target / "a.timer").read_text() == "new custom user unit"
 
 
-def test_destroy_removes_dangling_symlinks(dirs, mock_run, tmp_path):
+def test_destroy_removes_dangling_symlinks(dirs, mock_systemd, tmp_path):
     source, target = dirs
     target.mkdir()
     (target / "a.timer").symlink_to(tmp_path / "gone")  # points at nothing
@@ -172,14 +226,12 @@ def test_destroy_removes_dangling_symlinks(dirs, mock_run, tmp_path):
     assert not (target / "a.timer").is_symlink()
 
 
-def test_destroy_disables_timers(dirs, mock_run):
+def test_destroy_disables_timers(dirs, mock_systemd):
     source, target = dirs
     Services(source, target).destroy()
 
-    for timer in ["a.timer", "b.timer"]:
-        mock_run.assert_any_call(
-            ["systemctl", "--user", "disable", "--now", timer], check=True
-        )
+    (timers,), _ = mock_systemd.disable.call_args
+    assert sorted(timers) == ["a.timer", "b.timer"]
 
 
 def test_night_shift_services_setup_passes_schema_and_build_only(dirs):
@@ -187,9 +239,10 @@ def test_night_shift_services_setup_passes_schema_and_build_only(dirs):
     source, target = dirs
     services = NightShiftServices(source, target)
 
-    with patch.object(Services, "_create_units") as create_units, patch.object(
-        Services, "start"
-    ) as start:
+    with (
+        patch.object(Services, "_create_units") as create_units,
+        patch.object(Services, "start") as start,
+    ):
         services.setup("/path/to/schemas", True)  # what cli.py passes
 
     create_units.assert_called_once_with("/path/to/schemas")
@@ -273,7 +326,7 @@ def test_make_copy_quotes_a_path_with_spaces(dirs, tmp_path):
 
 
 def test_setup_without_schema_still_uses_the_real_path(
-    dirs, mock_run, tmp_path
+    dirs, mock_systemd, tmp_path
 ):
     source, target = dirs
     (source / "x.service").write_text(
@@ -281,7 +334,7 @@ def test_setup_without_schema_still_uses_the_real_path(
     )
 
     with patch(
-        "night_shift_services.services.find_command",
+        "gnome_night_shift_services.services.find_command",
         return_value="/real/nocturne-shift",
     ):
         Services(source, target)._create_units(tmp_dir=tmp_path / "gen")
@@ -292,7 +345,7 @@ def test_setup_without_schema_still_uses_the_real_path(
 
 
 def test_find_command_prefers_the_one_next_to_python(tmp_path, monkeypatch):
-    from night_shift_services.services import find_command
+    from gnome_night_shift_services.services import find_command
 
     script = tmp_path / "nocturne-shift"
     script.write_text("#!/bin/sh\n")
@@ -304,7 +357,7 @@ def test_find_command_prefers_the_one_next_to_python(tmp_path, monkeypatch):
 
 
 def test_find_command_falls_back_to_path(tmp_path, monkeypatch):
-    from night_shift_services.services import find_command
+    from gnome_night_shift_services.services import find_command
 
     bindir = tmp_path / "bin"
     bindir.mkdir()
@@ -318,7 +371,7 @@ def test_find_command_falls_back_to_path(tmp_path, monkeypatch):
 
 
 def test_units_dir_follows_xdg_data_home(tmp_path, monkeypatch):
-    from night_shift_services.services import units_dir
+    from gnome_night_shift_services.services import units_dir
 
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 
@@ -326,7 +379,7 @@ def test_units_dir_follows_xdg_data_home(tmp_path, monkeypatch):
 
 
 def test_units_dir_defaults_to_local_share(tmp_path, monkeypatch):
-    from night_shift_services.services import units_dir
+    from gnome_night_shift_services.services import units_dir
 
     monkeypatch.delenv("XDG_DATA_HOME")
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -337,8 +390,8 @@ def test_units_dir_defaults_to_local_share(tmp_path, monkeypatch):
     )
 
 
-def test_setup_writes_units_outside_the_package(dirs, mock_run, tmp_path):
-    import night_shift_services
+def test_setup_writes_units_outside_the_package(dirs, mock_systemd, tmp_path):
+    import gnome_night_shift_services
 
     source, target = dirs
     Services(source, target).setup("/x/schemas", build_only=True)
@@ -348,10 +401,12 @@ def test_setup_writes_units_outside_the_package(dirs, mock_run, tmp_path):
     assert all(
         os.readlink(target / name) == str(units / name) for name in UNITS
     )
-    assert not (Path(night_shift_services.__file__).parent / "tmp").exists()
+    assert not (
+        Path(gnome_night_shift_services.__file__).parent / "tmp"
+    ).exists()
 
 
-def test_destroy_removes_the_generated_units(dirs, mock_run, tmp_path):
+def test_destroy_removes_the_generated_units(dirs, mock_systemd, tmp_path):
     source, target = dirs
     services = Services(source, target)
     services.setup("/x/schemas", build_only=True)
@@ -361,7 +416,9 @@ def test_destroy_removes_the_generated_units(dirs, mock_run, tmp_path):
     assert not (tmp_path / "xdg" / "gnome-night-shift" / "units").exists()
 
 
-def test_destroy_keeps_other_files_in_the_units_dir(dirs, mock_run, tmp_path):
+def test_destroy_keeps_other_files_in_the_units_dir(
+    dirs, mock_systemd, tmp_path
+):
     source, target = dirs
     services = Services(source, target)
     services.setup("/x/schemas", build_only=True)
@@ -379,7 +436,7 @@ UNIT_C = "[Service]\n" + LINE_C
 
 
 def test_exec_start_doubles_percent_and_dollar():
-    from night_shift_services.services import _exec_start
+    from gnome_night_shift_services.services import _exec_start
 
     line = _exec_start(
         LINE_C, "/opt/100%h/bin/nocturne-shift", "/home/a/$HOME/schemas"
@@ -391,7 +448,7 @@ def test_exec_start_doubles_percent_and_dollar():
 
 
 def test_exec_start_keeps_the_units_own_specifier():
-    from night_shift_services.services import _exec_start
+    from gnome_night_shift_services.services import _exec_start
 
     # no program found: keep %h/.local/bin/nocturne-shift for systemd to expand
     assert _exec_start(LINE_C, None, "/x/schemas") == (
@@ -403,13 +460,13 @@ def test_exec_start_keeps_the_units_own_specifier():
     "bad", ["/x\nExecStartPre=/bin/sh -c id", "/x\r/y", "/x\t/y", "/x\0"]
 )
 def test_exec_start_refuses_control_characters(bad):
-    from night_shift_services.services import _exec_start
+    from gnome_night_shift_services.services import _exec_start
 
     with pytest.raises(ValueError, match="control character"):
         _exec_start(LINE_C, "/bin/nocturne-shift", bad)
 
 
-def test_setup_with_a_bad_path_writes_nothing(dirs, mock_run, tmp_path):
+def test_setup_with_a_bad_path_writes_nothing(dirs, mock_systemd, tmp_path):
     source, target = dirs
     (source / "x.service").write_text(UNIT_C)
 
@@ -420,4 +477,4 @@ def test_setup_with_a_bad_path_writes_nothing(dirs, mock_run, tmp_path):
 
     assert not (tmp_path / "xdg" / "gnome-night-shift" / "units").exists()
     assert not target.exists() or not any(target.iterdir())
-    mock_run.assert_not_called()
+    assert mock_systemd.method_calls == []

@@ -3,13 +3,16 @@ import sys
 import re
 import os
 import shlex
-import subprocess
 import shutil
 from pathlib import Path
 
+from .systemd_manager import SystemdError, SystemdManager
+
 WATCH_OPTION = "-w"
 COMMAND = "nocturne-shift"
-_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+_CONTROL_CHARS = re.compile(
+    r"[\x00-\x1f\x7f]"
+)  # Removes non printable chars ie(<tab>,<null>)
 
 
 def _systemd_escape(value: str) -> str:
@@ -55,6 +58,8 @@ class Services:
     def __init__(self, source_dir="", target_dir=""):
         self.source_dir = source_dir
         self.target_dir = target_dir
+        # This user's systemd, over the session bus (what systemctl --user uses)
+        self.systemd = SystemdManager()
 
         if sys.platform != "linux":
             sys.exit("Error: Systemd units can ony be deployed on linux")
@@ -67,6 +72,9 @@ class Services:
         self.all_units = list_of_units
         self.timers = [
             unit for unit in list_of_units if unit.name.endswith(".timer")
+        ]
+        self.services = [
+            unit for unit in list_of_units if unit.name.endswith(".service")
         ]
 
     def _symlink(self, source: str | None = None):
@@ -114,41 +122,47 @@ class Services:
 
     def _daemon_reload(self) -> None:
         try:
-            subprocess.run(
-                ["systemctl", "--user", "daemon-reload"], check=True
-            )
-        except subprocess.CalledProcessError as e:
+            self.systemd.reload()
+        except SystemdError as e:
             print(f"Error: {e}")
 
     def _start_services(self):
+        # systemctl --user enable --now TIMER...
+        timers = [timer.name for timer in self.timers]
         try:
-            self._daemon_reload()
-
-            for timer in self.timers:
-                print(f"Starting timer: {timer.name}")
-
-                subprocess.run(
-                    ["systemctl", "--user", "enable", "--now", timer.name],
-                    check=True,
-                )
-        except subprocess.CalledProcessError as e:
+            self.systemd.reload()  # pick up the unit files setup just linked
+            self.systemd.enable(timers)
+            self.systemd.reload()  # as systemctl does after enabling
+            for timer in timers:
+                print(f"Starting timer: {timer}")
+                self.systemd.start(timer)
+        except SystemdError as e:
             print(f"Error: {e}")
+
         finally:
             print("\n")
 
     def _stop_services(self):
+        # systemctl --user disable --now TIMER...
+        timers = [timer.name for timer in self.timers]
         try:
-            self._daemon_reload()
+            self.systemd.disable(timers)
+            self.systemd.reload()
+            for timer in timers:
+                print(f"stopping timer: {timer}")
+                self.systemd.stop(timer)
+        except SystemdError as e:
+            print(f"Error: {e}")
 
-            for timer in self.timers:
-                print(f"stopping timer: {timer.name}")
-
-                subprocess.run(
-                    ["systemctl", "--user", "disable", "--now", timer.name],
-                    check=True,
-                )
-
-        except subprocess.CalledProcessError as e:
+    def _run_services_once(self):
+        # systemctl --user restart SERVICE...: run each one now, once. Sorted so
+        # get-sunrise-sunset.service (the fetch) is queued before
+        # night-shift.service (the day/night check).
+        try:
+            for service in sorted(unit.name for unit in self.services):
+                print(f"Running: {service}")
+                self.systemd.restart(service)
+        except SystemdError as e:
             print(f"Error: {e}")
 
     def _remove_generated_units(self, units: Path | None = None):
@@ -221,6 +235,9 @@ class Services:
 
     def stop(self):
         self._stop_services()
+
+    def run_once(self):
+        self._run_services_once()
 
     def destroy(self):
         self.stop()

@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from night_shift_services.cli import register
+from gnome_night_shift_services.cli import register
 
 NIGHT_SHIFT_XML = """<schemalist>
   <schema id="org.gnome.shell.extensions.night-shift"
@@ -56,7 +56,9 @@ def schema_dir(make_schemas):
 @pytest.fixture
 def services_class():
     # run() does `from . import NightShiftServices`, so patch it on the package
-    with patch("night_shift_services.NightShiftServices") as services_class:
+    with patch(
+        "gnome_night_shift_services.NightShiftServices"
+    ) as services_class:
         yield services_class
 
 
@@ -78,7 +80,12 @@ def test_setup_builds_units_for_the_schema(services_class, schema_dir):
 
 @pytest.mark.parametrize(
     "subcommand, method",
-    [("start", "start"), ("stop", "stop"), ("teardown", "destroy")],
+    [
+        ("start", "start"),
+        ("stop", "stop"),
+        ("run-once", "run_once"),
+        ("teardown", "destroy"),
+    ],
 )
 def test_subcommands(services_class, subcommand, method):
     run_services(subcommand)
@@ -96,7 +103,7 @@ def test_bare_services_prints_help_and_does_nothing(services_class, capsys):
 
 # `gnome-night-shift ...`: the same actions as `nocturne-shift services ...`
 def test_gnome_night_shift_setup(services_class, schema_dir):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     assert main(["setup", str(schema_dir), "--build-only"]) == 0
 
@@ -107,10 +114,15 @@ def test_gnome_night_shift_setup(services_class, schema_dir):
 
 @pytest.mark.parametrize(
     "subcommand, method",
-    [("start", "start"), ("stop", "stop"), ("teardown", "destroy")],
+    [
+        ("start", "start"),
+        ("stop", "stop"),
+        ("run-once", "run_once"),
+        ("teardown", "destroy"),
+    ],
 )
 def test_gnome_night_shift_subcommands(services_class, subcommand, method):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     assert main([subcommand]) == 0
 
@@ -118,7 +130,7 @@ def test_gnome_night_shift_subcommands(services_class, subcommand, method):
 
 
 def test_bare_gnome_night_shift_prints_help_and_fails(services_class, capsys):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     assert main([]) == 2
     assert "usage: gnome-night-shift" in capsys.readouterr().out
@@ -133,14 +145,16 @@ def test_gnome_night_shift_is_a_console_script():
         for ep in distribution("gnome-night-shift").entry_points
         if ep.group == "console_scripts"
     }
-    assert scripts == {"gnome-night-shift": "night_shift_services.cli:main"}
+    assert scripts == {
+        "gnome-night-shift": "gnome_night_shift_services.cli:main"
+    }
 
 
 def test_setup_with_a_bad_path_exits_with_a_message(
     services_class, make_schemas
 ):
     bad_schema = make_schemas("x\n")
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     services_class.return_value.setup.side_effect = ValueError(
         "path contains a control character: '/x\\n'"
@@ -183,7 +197,7 @@ def install_extension(home, compiled=True):
 def test_setup_without_the_extension_exits_with_a_message(
     services_class, home
 ):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     with pytest.raises(SystemExit) as exit_info:
         main(["setup"])
@@ -198,7 +212,7 @@ def test_setup_without_the_extension_exits_with_a_message(
 
 def test_setup_with_an_uncompiled_schema_exits(services_class, home):
     """The XML alone isn't enough: nocturne-shift reads gschemas.compiled."""
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     install_extension(home, compiled=False)
 
@@ -209,7 +223,7 @@ def test_setup_with_an_uncompiled_schema_exits(services_class, home):
 
 
 def test_setup_with_the_extension_installed_runs(services_class, home):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     install_extension(home)
 
@@ -220,7 +234,7 @@ def test_setup_with_the_extension_installed_runs(services_class, home):
 
 def test_setup_with_an_explicit_schema_path(services_class, home, schema_dir):
     """For system-wide extension installs: no extension in $HOME needed."""
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     assert main(["setup", str(schema_dir)]) == 0
 
@@ -240,7 +254,7 @@ def test_setup_with_an_explicit_schema_path(services_class, home, schema_dir):
 def test_setup_refuses_a_path_without_the_night_shift_schema(
     services_class, make_schemas, folder_kwargs, why
 ):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     wrong = make_schemas("wrong", **folder_kwargs)
 
@@ -256,7 +270,7 @@ def test_setup_refuses_a_path_without_the_night_shift_schema(
 
 
 def test_setup_refuses_a_path_that_does_not_exist(services_class, tmp_path):
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     with pytest.raises(SystemExit):
         main(["setup", str(tmp_path / "no-such-folder")])
@@ -269,7 +283,7 @@ def test_setup_accepts_a_shared_folder_with_the_night_shift_schema(
 ):
     """Like /usr/share/glib-2.0/schemas: many schemas, found by ID (as
     nocturne-shift 0.7.3+ finds it too)."""
-    from night_shift_services.cli import main
+    from gnome_night_shift_services.cli import main
 
     shared = make_schemas("shared", night_shift=True, other_app=True)
 

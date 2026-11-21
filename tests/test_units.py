@@ -6,11 +6,14 @@ from pathlib import Path
 from importlib.metadata import distribution
 import pytest
 
-import night_shift_services
 from nocturne_shift import cli
-from night_shift_services import Services
 
-UNIT_DIR = Path(night_shift_services.__file__).parent / "systemd" / "user"
+import gnome_night_shift_services
+from gnome_night_shift_services import Services
+
+UNIT_DIR = (
+    Path(gnome_night_shift_services.__file__).parent / "systemd" / "user"
+)
 SERVICE_UNITS = sorted(UNIT_DIR.glob("*.service"))
 TIMES = ("06:52", "18:51")
 

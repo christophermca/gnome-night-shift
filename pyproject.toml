@@ -29,7 +29,7 @@ name = "gnome-night-shift"
 [project.urls]
 Homepage = "https://github.com/christophermca/gnome-night-shift"
 "nocturne-shift" = "https://github.com/christophermca/nocturne-shift"
-"GNOME extension" = "https://github.com/christophermca/gnome-shell-extension-night-shift"
+"GNOME-shell extension" = "https://github.com/christophermca/gnome-shell-extension-night-shift"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
@@ -37,17 +37,17 @@ dev = ["black"]
 
 # Its own command, so `pipx install gnome-night-shift` puts one on PATH
 [project.scripts]
-gnome-night-shift = "night_shift_services.cli:main"
+gnome-night-shift = "gnome_night_shift_services.cli:main"
 
 # Adds `nocturne-shift services ...` to the core's command
-[project.entry-points."night_shift.commands"]
-services = "night_shift_services.cli:register"
+[project.entry-points."gnome_night_shift.commands"]
+services = "gnome_night_shift_services.cli:register"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"night_shift_services" = ["systemd/user/*.timer", "systemd/user/*.service"]
+"gnome_night_shift_services" = ["systemd/user/*.timer", "systemd/user/*.service"]
 
 [tool.setuptools_scm]
 tag_regex = '^gnome-v(?P<version>\d+\.\d+\.\d+)$'
