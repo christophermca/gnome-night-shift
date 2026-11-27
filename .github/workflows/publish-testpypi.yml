@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0     # setuptools-scm reads the gnome-v* tags
+          fetch-depth: 0     # setuptools-scm reads the v* tags
 
       - uses: actions/setup-python@v7
         with:

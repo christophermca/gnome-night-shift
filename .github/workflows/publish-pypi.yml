@@ -1,12 +1,12 @@
 name: Publish to PyPI
 
 # Run by hand from the release tag: Actions -> "Publish to PyPI" -> Run workflow
-# -> Use workflow from -> Tags -> gnome-vX.Y.Z. Run from a branch, any commit
+# -> Use workflow from -> Tags -> vX.Y.Z. Run from a branch, any commit
 # after the tag builds a .devN version, which the build job refuses.
 # Uploads to PyPI are permanent, so:
 #   - only release versions are uploaded (no .devN / a / b / rc builds), and
 #   - the publish job uses the `pypi` environment; give it required reviewers
-#     and limit it to tags gnome-v* (Settings -> Environments).
+#     and limit it to tags v* (Settings -> Environments).
 # Logs in with PyPI Trusted Publishing: add a pending publisher on pypi.org for
 # gnome-night-shift with repository christophermca/gnome-night-shift, workflow
 # `publish-pypi.yml` and environment `pypi`.
@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0     # setuptools-scm reads the gnome-v* tags
+          fetch-depth: 0     # setuptools-scm reads the v* tags
 
       - uses: actions/setup-python@v7
         with:
@@ -74,7 +74,7 @@ jobs:
       - name: Refuse dev / pre-release builds
         run: |
           if ls dist/*.whl | grep -E "\.dev[0-9]+|a[0-9]+-|b[0-9]+-|rc[0-9]+-"; then
-            echo "::error::Not a release build. Tag the commit (gnome-vX.Y.Z) and run from that tag."
+            echo "::error::Not a release build. Tag the commit (vX.Y.Z) and run from that tag."
             exit 1
           fi
           echo "Release versions only:" && ls dist/*.whl
