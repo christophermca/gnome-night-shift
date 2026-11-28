@@ -11,6 +11,8 @@ name: Publish to PyPI
 # gnome-night-shift with repository christophermca/gnome-night-shift, workflow
 # `publish-pypi.yml` and environment `pypi`.
 on:
+  release:
+    types: [released] # published as a full release (not drafts or pre-releases)
   workflow_dispatch:
 
 # Read-only token for every job; the publish job adds only id-token: write.
@@ -78,6 +80,22 @@ jobs:
             exit 1
           fi
           echo "Release versions only:" && ls dist/*.whl
+
+
+      # For a release, setuptools-scm must build the tag's own version:
+      # v1.0.3 -> 1.0.3
+      - name: Check the version matches the release tag
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          expected="${TAG#v}"
+          for file in dist/*; do
+            case "$file" in
+              *-"$expected"-*.whl | *-"$expected".tar.gz) ;;
+              *) echo "::error::$file is not version $expected"; exit 1 ;;
+            esac
+          done
 
       # Install the built wheel the way a user would: nocturne-shift and every
       # other dependency come from PyPI, so a dependency PyPI can't satisfy
