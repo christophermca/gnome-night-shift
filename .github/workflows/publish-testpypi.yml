@@ -1,11 +1,16 @@
 name: Publish to TestPyPI
-
-# Run by hand: Actions tab -> "Publish to TestPyPI" -> Run workflow.
+#
+# Runs when a release is published as a pre-release: on the release page,
+# tick "Set as a pre-release", then "Publish release". Also by hand: Actions
+# tab -> "Publish to TestPyPI" -> Run workflow (a branch builds a .devN version).
+#
 # Logs in with Trusted Publishing: the gnome-night-shift project on
 # test.pypi.org needs a publisher with repository
 # christophermca/gnome-night-shift, workflow `publish-testpypi.yml` and
 # environment `test-pypi` (Settings -> Environments in this repo).
 on:
+  release:
+    types: [prereleased]
   workflow_dispatch:
 
 permissions:
@@ -55,6 +60,21 @@ jobs:
           python -m pip install --upgrade pip build twine
           python -m build --outdir dist/
           python -m twine check --strict dist/*
+
+      # For a pre-release, setuptools-scm must build the tag's own version:
+      # v1.0.3 -> 1.0.3, not 1.0.3.devN
+      - name: Check the version matches the release tag
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          expected="${TAG#v}"
+          for file in dist/*; do
+            case "$file" in
+              *-"$expected"-*.whl | *-"$expected".tar.gz) ;;
+              *) echo "::error::$file is not version $expected"; exit 1 ;;
+            esac
+          done
 
       - uses: actions/upload-artifact@v7
         with:
