@@ -50,7 +50,7 @@ where = ["src"]
 "gnome_night_shift_services" = ["systemd/user/*.timer", "systemd/user/*.service"]
 
 [tool.setuptools_scm]
-tag_regex = '^gnome-v(?P<version>\d+\.\d+\.\d+)$'
-git_describe_command = "git describe --dirty --tags --long --match 'gnome-v*'"
+tag_regex = '^v(?P<version>\d+\.\d+\.\d+)$'
+git_describe_command = "git describe --dirty --tags --long --match 'v[0-9]*'"
 local_scheme = "no-local-version"
 fallback_version = "0.0.0"
